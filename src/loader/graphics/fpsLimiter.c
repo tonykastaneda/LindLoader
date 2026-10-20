@@ -35,6 +35,7 @@ static bool gFpsVisible = false;
 static bool gVsyncPaces, gWantVsyncPaces;
 static int gInterval = -1;
 static int gPresents = 1, gWantPresents = 1; /* times each game frame is presented */
+static long long gRefreshUs, gLastShownUs;
 static long long gNextDeadline;
 static long long gPeriod;
 
@@ -145,6 +146,7 @@ void setupVsync(float refreshHz)
             {
                 gPresents = n;
                 gVsyncPaces = true;
+                gRefreshUs = (long long)(1000000.0 / refreshHz + 0.5);
             }
         }
     }
@@ -168,13 +170,31 @@ void setupVsync(float refreshHz)
 void vsyncAfterPresents(void)
 {
     if (gVsyncPaces)
+    {
         glad_glFinish();
+        gLastShownUs = nowUs();
+    }
 }
 
-/* Extra presents of the current frame after its first swap. */
+/* Extra presents of the current frame after its first swap, so each game
+   frame stays on screen for gPresents refreshes (2 at 120 Hz for 60 FPS).
+   Count the refreshes the frame has already taken since the previous one
+   was shown and only add what is missing: a frame that was slow to render
+   and already missed a refresh is not held for two more, which would drop
+   a game that needs a little over one refresh per frame to 40 or 30 FPS. */
 int vsyncExtraPresents(void)
 {
-    return gVsyncPaces ? gPresents - 1 : 0;
+    long long elapsed;
+    int taken;
+
+    if (!gVsyncPaces || gPresents <= 1)
+        return 0;
+    glad_glFinish(); /* wait until the first present is on screen */
+    if (gLastShownUs == 0 || gRefreshUs <= 0)
+        return gPresents - 1;
+    elapsed = nowUs() - gLastShownUs;
+    taken = (int)((elapsed + gRefreshUs / 2) / gRefreshUs);
+    return taken >= gPresents ? 0 : gPresents - taken;
 }
 
 void vsyncBeforeSwap(void)
