@@ -3,3 +3,8 @@ build-linux/
 build-win32/
 compile_commands.json
 
+
+# Local game builds and test tools (game files are not redistributable)
+/VT3/
+/RACETV/
+/tools/
