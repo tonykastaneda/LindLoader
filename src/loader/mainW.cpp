@@ -21,6 +21,7 @@
 #include "elfLoader/termiosBridge.hpp"
 #include "elfLoader/networkBridge.hpp"
 #include "elfLoader/mathBridge.hpp"
+#include "elfLoader/intelBridge.hpp"
 #include "elfLoader/symbolResolver.hpp"
 #include "elfLoader/pthread/pthreadEmu.hpp"
 #include "loader/config/config.h"
@@ -73,11 +74,62 @@ void initBridges()
     Alsa2SdlBridge::initBridges();
     RegexBridge::initBridges();
     MathBridge::initBridges();
+    IntelBridge::initBridges();
+}
+
+/* On a crash, print where it happened and the likely return addresses
+   into the game (ELF code is loaded at 0x08048000 and up) to stderr, so
+   Windows-only failures can be traced back to the game function. */
+static LONG CALLBACK crashReport(EXCEPTION_POINTERS *ep)
+{
+    static int reported;
+    DWORD code = ep->ExceptionRecord->ExceptionCode;
+    if (code != EXCEPTION_ACCESS_VIOLATION && code != EXCEPTION_ILLEGAL_INSTRUCTION && code != EXCEPTION_INT_DIVIDE_BY_ZERO)
+        return EXCEPTION_CONTINUE_SEARCH;
+    if (reported++)
+        return EXCEPTION_CONTINUE_SEARCH;
+    CONTEXT *c = ep->ContextRecord;
+    fprintf(stderr, "\n*** CRASH %08lx at %08lx: eax=%08lx ebx=%08lx ecx=%08lx edx=%08lx esi=%08lx edi=%08lx ebp=%08lx esp=%08lx\n",
+            code, c->Eip, c->Eax, c->Ebx, c->Ecx, c->Edx, c->Esi, c->Edi, c->Ebp, c->Esp);
+    /* LL_PEEK=addr,addr,...: also print the dword at each address. */
+    const char *peek = getenv("LL_PEEK");
+    while (peek && *peek)
+    {
+        char *end;
+        unsigned long addr = strtoul(peek, &end, 16);
+        if (end == peek)
+            break;
+        MEMORY_BASIC_INFORMATION mbi;
+        if (VirtualQuery((void *)addr, &mbi, sizeof(mbi)) && mbi.State == MEM_COMMIT)
+            fprintf(stderr, "*** [%08lx] = %08lx\n", addr, *(volatile DWORD *)addr);
+        peek = *end == ',' ? end + 1 : end;
+    }
+    fprintf(stderr, "*** game return addresses:");
+    DWORD *sp = (DWORD *)c->Esp;
+    int n = 0;
+    for (int i = 0; i < 2048 && n < 24; i++)
+    {
+        MEMORY_BASIC_INFORMATION mbi;
+        if (!VirtualQuery(sp + i, &mbi, sizeof(mbi)) || mbi.State != MEM_COMMIT)
+            break;
+        if (sp[i] >= 0x08048000 && sp[i] < 0x0a000000)
+        {
+            fprintf(stderr, " %08lx", sp[i]);
+            n++;
+        }
+    }
+    fprintf(stderr, "\n");
+    fflush(stderr);
+    return EXCEPTION_CONTINUE_SEARCH;
 }
 
 int main(int argc, char *argv[], char *envp[])
 {
     logSetMinLevel(LOG_WARN);
+    /* LL_LOGLEVEL=trace|debug|info shows more of the loader's own log. */
+    if (const char *lvl = getenv("LL_LOGLEVEL"))
+        logSetMinLevel(strcmp(lvl, "trace") == 0 ? LOG_TRACE : strcmp(lvl, "debug") == 0 ? LOG_DEBUG : LOG_INFO);
+    AddVectoredExceptionHandler(0, crashReport);
 
     char command[MAX_PATH_LENGTH] = {0};
     char originalDir[MAX_PATH_LENGTH] = {0};

@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include "log.h"
 #include <string.h>
 #include <malloc.h>
@@ -370,7 +371,18 @@ int logSanityChecks(int level, const char *message)
  */
 FILE *logGetStream()
 {
-    return stdout;
+    /* LL_LOGFILE=path writes the log to that file, unbuffered (games can
+       take over stdout once they start). */
+    static FILE *file;
+    static int checked;
+    if (!checked)
+    {
+        const char *path = getenv("LL_LOGFILE");
+        checked = 1;
+        if (path && *path && (file = fopen(path, "a")) != NULL)
+            setvbuf(file, NULL, _IONBF, 0);
+    }
+    return file ? file : stdout;
 }
 
 /**

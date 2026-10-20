@@ -111,98 +111,58 @@ static std::mutex g_net_mutex;
 #define EREMOTE EINVAL
 #endif
 
+/* Winsock error -> errno as the game sees it. The game reads errno
+   through __errno_location (the C runtime's errno), and expects Linux
+   numbers: 1-34 match the C runtime, but the network codes do not
+   (e.g. EINPROGRESS is 115 on Linux, 112 in MinGW), so return Linux
+   values here. */
 static int mapWSAErrorToErrno(int wsaError)
 {
     switch (wsaError)
     {
-        case WSAEINTR:
-            return EINTR;
-        case WSAEBADF:
-            return EBADF;
-        case WSAEACCES:
-            return EACCES;
-        case WSAEFAULT:
-            return EFAULT;
-        case WSAEINVAL:
-            return EINVAL;
-        case WSAEMFILE:
-            return EMFILE;
-        case WSAEWOULDBLOCK:
-            return EAGAIN;
-        case WSAEINPROGRESS:
-            return EINPROGRESS;
-        case WSAEALREADY:
-            return EALREADY;
-        case WSAENOTSOCK:
-            return ENOTSOCK;
-        case WSAEDESTADDRREQ:
-            return EDESTADDRREQ;
-        case WSAEMSGSIZE:
-            return EMSGSIZE;
-        case WSAEPROTOTYPE:
-            return EPROTOTYPE;
-        case WSAENOPROTOOPT:
-            return ENOPROTOOPT;
-        case WSAEPROTONOSUPPORT:
-            return EPROTONOSUPPORT;
-        case WSAESOCKTNOSUPPORT:
-            return ESOCKTNOSUPPORT;
-        case WSAEOPNOTSUPP:
-            return EOPNOTSUPP;
-        case WSAEPFNOSUPPORT:
-            return EPFNOSUPPORT;
-        case WSAEAFNOSUPPORT:
-            return EAFNOSUPPORT;
-        case WSAEADDRINUSE:
-            return EADDRINUSE;
-        case WSAEADDRNOTAVAIL:
-            return EADDRNOTAVAIL;
-        case WSAENETDOWN:
-            return ENETDOWN;
-        case WSAENETUNREACH:
-            return ENETUNREACH;
-        case WSAENETRESET:
-            return ENETRESET;
-        case WSAECONNABORTED:
-            return ECONNABORTED;
-        case WSAECONNRESET:
-            return ECONNRESET;
-        case WSAENOBUFS:
-            return ENOBUFS;
-        case WSAEISCONN:
-            return EISCONN;
-        case WSAENOTCONN:
-            return ENOTCONN;
-        case WSAESHUTDOWN:
-            return ESHUTDOWN;
-        case WSAETOOMANYREFS:
-            return ETOOMANYREFS;
-        case WSAETIMEDOUT:
-            return ETIMEDOUT;
-        case WSAECONNREFUSED:
-            return ECONNREFUSED;
-        case WSAELOOP:
-            return ELOOP;
-        case WSAENAMETOOLONG:
-            return ENAMETOOLONG;
-        case WSAEHOSTDOWN:
-            return EHOSTDOWN;
-        case WSAEHOSTUNREACH:
-            return EHOSTUNREACH;
-        case WSAENOTEMPTY:
-            return ENOTEMPTY;
-        case WSAEPROCLIM:
-            return EPROCLIM;
-        case WSAEUSERS:
-            return EUSERS;
-        case WSAEDQUOT:
-            return EDQUOT;
-        case WSAESTALE:
-            return ESTALE;
-        case WSAEREMOTE:
-            return EREMOTE;
-        default:
-            return EINVAL;
+        case WSAEINTR: return 4;            /* EINTR */
+        case WSAEBADF: return 9;            /* EBADF */
+        case WSAEACCES: return 13;          /* EACCES */
+        case WSAEFAULT: return 14;          /* EFAULT */
+        case WSAEINVAL: return 22;          /* EINVAL */
+        case WSAEMFILE: return 24;          /* EMFILE */
+        case WSAEWOULDBLOCK: return 11;     /* EAGAIN / EWOULDBLOCK */
+        case WSAEINPROGRESS: return 115;    /* EINPROGRESS */
+        case WSAEALREADY: return 114;       /* EALREADY */
+        case WSAENOTSOCK: return 88;        /* ENOTSOCK */
+        case WSAEDESTADDRREQ: return 89;    /* EDESTADDRREQ */
+        case WSAEMSGSIZE: return 90;        /* EMSGSIZE */
+        case WSAEPROTOTYPE: return 91;      /* EPROTOTYPE */
+        case WSAENOPROTOOPT: return 92;     /* ENOPROTOOPT */
+        case WSAEPROTONOSUPPORT: return 93; /* EPROTONOSUPPORT */
+        case WSAESOCKTNOSUPPORT: return 94; /* ESOCKTNOSUPPORT */
+        case WSAEOPNOTSUPP: return 95;      /* EOPNOTSUPP */
+        case WSAEPFNOSUPPORT: return 96;    /* EPFNOSUPPORT */
+        case WSAEAFNOSUPPORT: return 97;    /* EAFNOSUPPORT */
+        case WSAEADDRINUSE: return 98;      /* EADDRINUSE */
+        case WSAEADDRNOTAVAIL: return 99;   /* EADDRNOTAVAIL */
+        case WSAENETDOWN: return 100;       /* ENETDOWN */
+        case WSAENETUNREACH: return 101;    /* ENETUNREACH */
+        case WSAENETRESET: return 102;      /* ENETRESET */
+        case WSAECONNABORTED: return 103;   /* ECONNABORTED */
+        case WSAECONNRESET: return 104;     /* ECONNRESET */
+        case WSAENOBUFS: return 105;        /* ENOBUFS */
+        case WSAEISCONN: return 106;        /* EISCONN */
+        case WSAENOTCONN: return 107;       /* ENOTCONN */
+        case WSAESHUTDOWN: return 108;      /* ESHUTDOWN */
+        case WSAETOOMANYREFS: return 109;   /* ETOOMANYREFS */
+        case WSAETIMEDOUT: return 110;      /* ETIMEDOUT */
+        case WSAECONNREFUSED: return 111;   /* ECONNREFUSED */
+        case WSAELOOP: return 40;           /* ELOOP */
+        case WSAENAMETOOLONG: return 36;    /* ENAMETOOLONG */
+        case WSAEHOSTDOWN: return 112;      /* EHOSTDOWN */
+        case WSAEHOSTUNREACH: return 113;   /* EHOSTUNREACH */
+        case WSAENOTEMPTY: return 39;       /* ENOTEMPTY */
+        case WSAEUSERS: return 87;          /* EUSERS */
+        case WSAEDQUOT: return 122;         /* EDQUOT */
+        case WSAESTALE: return 116;         /* ESTALE */
+        case WSAEREMOTE: return 66;         /* EREMOTE */
+        default: return 22;                 /* EINVAL */
     }
 }
 
@@ -224,6 +184,9 @@ namespace NetworkBridge
         MAP("shutdown", shutdown);
         MAP("setsockopt", bridgeSetsockopt);
         MAP("getsockopt", bridgeGetsockopt);
+        MAP("getsockname", bridgeGetsockname);
+        MAP("sendmsg", bridgeSendmsgUnsupported);
+        MAP("recvmsg", bridgeSendmsgUnsupported);
         MAP("inet_pton", bridgeInet_pton);
         MAP("inet_aton", bridgeInet_aton);
         MAP("inet_addr", bridgeInet_addr);
@@ -304,7 +267,10 @@ extern "C" int bridgeConnect(SOCKET s, const struct sockaddr *name, int namelen)
     int ret = connect(s, name, namelen);
     if (ret == SOCKET_ERROR)
     {
-        errno = mapWSAErrorToErrno(WSAGetLastError());
+        int wsa = WSAGetLastError();
+        /* A non-blocking connect that has started: Linux says EINPROGRESS,
+           Winsock says WSAEWOULDBLOCK. */
+        errno = wsa == WSAEWOULDBLOCK ? 115 : mapWSAErrorToErrno(wsa);
     }
     log_info(">>> connect EXIT: returning %d (WSAError=%d)", ret, ret < 0 ? WSAGetLastError() : 0);
     return ret;
@@ -312,11 +278,27 @@ extern "C" int bridgeConnect(SOCKET s, const struct sockaddr *name, int namelen)
 
 extern "C" int bridgeBind(SOCKET s, const struct sockaddr *name, int namelen)
 {
-    log_info(">>> bind called: socket=%lld", (long long)s);
+    const struct sockaddr_in *in = (const struct sockaddr_in *)name;
+    log_info(">>> bind called: socket=%lld %s:%u", (long long)s, name && name->sa_family == AF_INET ? inet_ntoa(in->sin_addr) : "?",
+             name && name->sa_family == AF_INET ? ntohs(in->sin_port) : 0);
     int ret = bind(s, name, namelen);
+    /* Linux lets a socket bind to a broadcast address (e.g. 127.255.255.255
+       or 192.168.1.255) to receive that subnet's broadcasts; Windows refuses
+       (WSAEADDRNOTAVAIL). Bind to any address on the same port instead,
+       which receives the same broadcasts. */
+    if (ret == SOCKET_ERROR && WSAGetLastError() == WSAEADDRNOTAVAIL && name && name->sa_family == AF_INET &&
+        (ntohl(in->sin_addr.s_addr) & 0xff) == 0xff)
+    {
+        struct sockaddr_in any = *in;
+        any.sin_addr.s_addr = htonl(INADDR_ANY);
+        ret = bind(s, (const struct sockaddr *)&any, sizeof(any));
+        log_info(">>> bind: broadcast address not bindable on Windows, bound 0.0.0.0:%u instead (%d)", ntohs(in->sin_port), ret);
+    }
     if (ret == SOCKET_ERROR)
     {
-        errno = mapWSAErrorToErrno(WSAGetLastError());
+        int wsa = WSAGetLastError();
+        log_info(">>> bind failed: WSA error %d", wsa);
+        errno = mapWSAErrorToErrno(wsa);
     }
     log_info(">>> bind EXIT: returning %d", ret);
     return ret;
@@ -407,15 +389,59 @@ extern "C" int bridgeSendto(SOCKET s, const char *buf, int len, int flags, const
     return ret;
 }
 
+/* Linux socket option numbers are not Winsock's. Translate SOL_SOCKET and
+   IPPROTO_IP options; returns false for options Windows has no equivalent
+   for. SO_RCVTIMEO/SO_SNDTIMEO take a struct timeval on Linux and a DWORD
+   of milliseconds on Windows (converted into *ms). */
+static bool linuxSockoptToWin(int *level, int *optname, const char **optval, int *optlen, DWORD *ms)
+{
+    if (*level == 1) /* SOL_SOCKET */
+    {
+        static const int map[][2] = {{1, SO_DEBUG},      {2, SO_REUSEADDR}, {3, SO_TYPE},     {4, SO_ERROR},
+                                     {5, SO_DONTROUTE},  {6, SO_BROADCAST}, {7, SO_SNDBUF},   {8, SO_RCVBUF},
+                                     {9, SO_KEEPALIVE},  {10, SO_OOBINLINE}, {13, SO_LINGER}, {18, SO_RCVLOWAT},
+                                     {19, SO_SNDLOWAT},  {20, SO_RCVTIMEO}, {21, SO_SNDTIMEO}};
+        *level = SOL_SOCKET;
+        for (auto &m : map)
+            if (m[0] == *optname)
+            {
+                *optname = m[1];
+                if ((m[1] == SO_RCVTIMEO || m[1] == SO_SNDTIMEO) && *optval && *optlen >= 8)
+                {
+                    const long *tv = (const long *)*optval; /* tv_sec, tv_usec */
+                    *ms = (DWORD)(tv[0] * 1000 + tv[1] / 1000);
+                    *optval = (const char *)ms;
+                    *optlen = sizeof(DWORD);
+                }
+                return true;
+            }
+        return false;
+    }
+    if (*level == 0) /* IPPROTO_IP */
+    {
+        static const int map[][2] = {{1, IP_TOS},          {2, IP_TTL},             {32, IP_MULTICAST_IF},
+                                     {33, IP_MULTICAST_TTL}, {34, IP_MULTICAST_LOOP}, {35, IP_ADD_MEMBERSHIP},
+                                     {36, IP_DROP_MEMBERSHIP}};
+        for (auto &m : map)
+            if (m[0] == *optname)
+            {
+                *optname = m[1];
+                return true;
+            }
+        return false;
+    }
+    return true; /* IPPROTO_TCP (TCP_NODELAY = 1 on both) and others */
+}
+
 extern "C" int bridgeSetsockopt(SOCKET s, int level, int optname, const char *optval, int optlen)
 {
     log_info(">>> setsockopt called: socket=%lld, level=%d, optname=%d", (long long)s, level, optname);
 
-    if (level == 1)
+    DWORD ms;
+    if (!linuxSockoptToWin(&level, &optname, &optval, &optlen, &ms))
     {
-        level = 0xFFFF;
-        if (optname == 2)
-            optname = 0x0004;
+        log_info(">>> setsockopt: no Windows equivalent, ignored");
+        return 0;
     }
 
     int ret = setsockopt(s, level, optname, optval, optlen);
@@ -427,15 +453,38 @@ extern "C" int bridgeSetsockopt(SOCKET s, int level, int optname, const char *op
     return ret;
 }
 
+extern "C" int bridgeGetsockname(SOCKET s, struct sockaddr *name, int *namelen)
+{
+    int ret = getsockname(s, name, namelen);
+    if (ret == SOCKET_ERROR)
+        errno = mapWSAErrorToErrno(WSAGetLastError());
+    return ret;
+}
+
+/* Winsock has no sendmsg/recvmsg; only used for cabinet link-up. */
+extern "C" int bridgeSendmsgUnsupported(SOCKET s, void *msg, int flags)
+{
+    (void)s;
+    (void)msg;
+    (void)flags;
+    errno = 95; /* Linux EOPNOTSUPP */
+    return -1;
+}
+
 extern "C" int bridgeGetsockopt(SOCKET s, int level, int optname, char *optval, int *optlen)
 {
     log_info(">>> getsockopt called: socket=%lld, level=%d, optname=%d", (long long)s, level, optname);
 
-    if (level == 1)
     {
-        level = 0xFFFF;
-        if (optname == 2)
-            optname = 0x0004;
+        const char *dummy = optval;
+        int len = optlen ? *optlen : 0;
+        DWORD ms;
+        if (!linuxSockoptToWin(&level, &optname, &dummy, &len, &ms))
+        {
+            if (optval && optlen && *optlen >= 4)
+                memset(optval, 0, 4);
+            return 0;
+        }
     }
 
     int ret = getsockopt(s, level, optname, optval, optlen);

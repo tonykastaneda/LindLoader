@@ -52,6 +52,7 @@ namespace MathBridge
         MAP("sqrtf", bridge_sqrtf);
         MAP("div", bridge_div);
         MAP("finitef", bridge_finitef);
+        MAP("__finitef", bridge_finitef);
         MAP("finite", bridge_finite);
         MAP("frexp", bridge_frexp);
         MAP("frexpf", bridge_frexpf);

@@ -30,6 +30,9 @@
 #include "../resources/lindberghLogo.h"
 #include "../log/log.h"
 #include "filesystemShared.h"
+#ifdef _WIN32
+#include "netIoctlWin.h"
+#endif
 
 #ifdef __linux__
 #include <dlfcn.h>
@@ -980,6 +983,12 @@ int sharedIoctl(int fd, unsigned long int request, ...)
         strncpy(ifr->ifr_name, getConfig()->nicName, IFNAMSIZ);
     }
     return _ioctl(fd, request, argp);
+#else
+    {
+        int handled, ret = netIoctlWin(fd, request, argp, &handled);
+        if (handled)
+            return ret;
+    }
 #endif
     return 0;
 }

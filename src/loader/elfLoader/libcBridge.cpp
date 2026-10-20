@@ -38,6 +38,25 @@ extern "C"
     unsigned long int __strtoul_internal(const char *nptr, char **endptr, int base, int group);
 }
 
+/* Resource limits don't apply on Windows: report success. */
+extern "C" int bridgeSetrlimit(int resource, const void *rlim)
+{
+    (void)resource;
+    (void)rlim;
+    return 0;
+}
+
+/* No ELF program headers to walk for the Linux libraries loaded here:
+   report none. Logged, since it means the game is unwinding an exception. */
+extern "C" int bridgeDlIteratePhdr(int (*callback)(void *, size_t, void *), void *data)
+{
+    (void)callback;
+    (void)data;
+    fprintf(stderr, "[loader] dl_iterate_phdr called from %p (game is unwinding a C++ exception)\n", __builtin_return_address(0));
+    fflush(stderr);
+    return 0;
+}
+
 namespace LibcBridge
 {
     char bridgeLibcSingleThreaded = 1; // 1 = true (skip pthread locks), 0 = false
@@ -140,6 +159,9 @@ namespace LibcBridge
         MAP("system", bridgeSystem);
 
         MAP("getpid", _getpid);
+        MAP("strtoll", strtoll);
+        MAP("setrlimit", bridgeSetrlimit);
+        MAP("dl_iterate_phdr", bridgeDlIteratePhdr);
         MAP("getuid", bridgeGetuid);
         MAP("waitpid", bridgeWaitpid);
         MAP("fork", bridgeFork);
