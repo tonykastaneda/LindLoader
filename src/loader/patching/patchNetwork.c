@@ -129,78 +129,66 @@ int rtunedBind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
     return bind(sockfd, addr, addrlen);
 }
 
+/* Address remapping shared by the Linux libc interposers below and the
+   Windows network bridge (elfLoader/networkBridge.cpp), so the patches
+   apply on both. Return the address the game should really use. */
+const char *networkRemapInetAddr(const char *cp)
+{
+    if (!cp || !getConfig()->enableNetworkPatches)
+        return cp;
+    if (gId == TOO_SPICY_SBMV)
+    {
+        if (strcmp("10.0.0.1", cp) == 0 && strcmp(getConfig()->tooSpicyIpCab1, "") != 0)
+            return getConfig()->tooSpicyIpCab1;
+        if (strcmp("10.0.0.2", cp) == 0 && strcmp(getConfig()->tooSpicyIpCab2, "") != 0)
+            return getConfig()->tooSpicyIpCab2;
+    }
+    else if (gId == SEGA_RACE_TV_SBPF)
+    {
+        // Standalone = 4, Main = 0, 2-Sub = 1, 3-Sub = 2 and 4-Sub = 3
+        if (strcmp("192.168.49.1", cp) == 0 || strcmp("192.168.49.2", cp) == 0 || strcmp("192.168.49.3", cp) == 0 ||
+            strcmp("192.168.49.4", cp) == 0)
+        {
+            if (strcmp(getConfig()->srtvIP, "") != 0)
+                return getConfig()->srtvIP;
+            // Prevents the game to crash if the IP does not match the PC's IP.
+            return "127.0.0.1";
+        }
+    }
+    return cp;
+}
+
+const char *networkRemapInetAton(const char *cp)
+{
+    if (!cp || gId != HARLEY_DAVIDSON_SBRG)
+        return cp;
+    if (!getConfig()->enableNetworkPatches)
+        return "127.0.0.1";
+    if (strcmp(cp, "192.168.1.1") == 0 || strcmp(cp, "192.168.1.5") == 0 || strcmp(cp, "192.168.1.9") == 0)
+        return strcmp(getConfig()->IpCab1, "") != 0 ? getConfig()->IpCab1 : "127.0.0.1";
+    if ((strcmp(cp, "192.168.1.2") == 0 || strcmp(cp, "192.168.1.7") == 0 || strcmp(cp, "192.168.1.10") == 0) &&
+        strcmp(getConfig()->IpCab2, "") != 0)
+        return getConfig()->IpCab2;
+    if ((strcmp(cp, "192.168.1.3") == 0 || strcmp(cp, "192.168.1.7") == 0 || strcmp(cp, "192.168.1.11") == 0) &&
+        strcmp(getConfig()->IpCab3, "") != 0)
+        return getConfig()->IpCab4; /* upstream maps cab 3 to IpCab4; kept as is */
+    if ((strcmp(cp, "192.168.1.4") == 0 || strcmp(cp, "192.168.1.8") == 0 || strcmp(cp, "192.168.1.12") == 0) &&
+        strcmp(getConfig()->IpCab4, "") != 0)
+        return getConfig()->IpCab4;
+    return cp;
+}
+
 #ifdef __linux__
 int inet_aton(const char *cp, struct in_addr *inp)
 {
     int (*_inet_aton)(const char *cp, struct in_addr *inp) = dlsym(RTLD_NEXT, "inet_aton");
-
-    if (gId == HARLEY_DAVIDSON_SBRG)
-    {
-        if (getConfig()->enableNetworkPatches)
-        {
-            if ((strcmp(cp, "192.168.1.1") == 0 || strcmp(cp, "192.168.1.5") == 0 || strcmp(cp, "192.168.1.9") == 0))
-            {
-                if (strcmp(getConfig()->IpCab1, "") != 0)
-                    return _inet_aton(getConfig()->IpCab1, inp);
-                else
-                    return _inet_aton("127.0.0.1", inp);
-            }
-            if ((strcmp(cp, "192.168.1.2") == 0 || strcmp(cp, "192.168.1.7") == 0 || strcmp(cp, "192.168.1.10") == 0) &&
-                strcmp(getConfig()->IpCab2, "") != 0)
-            {
-                return _inet_aton(getConfig()->IpCab2, inp);
-            }
-            if ((strcmp(cp, "192.168.1.3") == 0 || strcmp(cp, "192.168.1.7") == 0 || strcmp(cp, "192.168.1.11") == 0) &&
-                strcmp(getConfig()->IpCab3, "") != 0)
-            {
-                return _inet_aton(getConfig()->IpCab4, inp);
-            }
-            if ((strcmp(cp, "192.168.1.4") == 0 || strcmp(cp, "192.168.1.8") == 0 || strcmp(cp, "192.168.1.12") == 0) &&
-                strcmp(getConfig()->IpCab4, "") != 0)
-            {
-                return _inet_aton(getConfig()->IpCab4, inp);
-            }
-        }
-        else
-        {
-            return _inet_aton("127.0.0.1", inp);
-        }
-    }
-    return _inet_aton(cp, inp);
+    return _inet_aton(networkRemapInetAton(cp), inp);
 }
 
 in_addr_t inet_addr(const char *cp)
 {
     in_addr_t (*_inet_addr)(const char *cp) = dlsym(RTLD_NEXT, "inet_addr");
-
-    if (getConfig()->enableNetworkPatches)
-    {
-        if (gId == TOO_SPICY_SBMV)
-        {
-            if (strcmp("10.0.0.1", cp) == 0 && strcmp(getConfig()->tooSpicyIpCab1, "") != 0)
-            {
-                cp = getConfig()->tooSpicyIpCab1;
-            }
-            else if (strcmp("10.0.0.2", cp) == 0 && strcmp(getConfig()->tooSpicyIpCab2, "") != 0)
-            {
-                cp = getConfig()->tooSpicyIpCab2;
-            }
-        }
-        else if (gId == SEGA_RACE_TV_SBPF)
-        {
-            // Standalone = 4, Main = 0, 2-Sub = 1, 3-Sub = 2 and 4-Sub = 3
-            if (strcmp("192.168.49.1", cp) == 0 || strcmp("192.168.49.2", cp) == 0 || strcmp("192.168.49.3", cp) == 0 ||
-                strcmp("192.168.49.4", cp) == 0)
-            {
-                if (strcmp(getConfig()->srtvIP, "") != 0)
-                    cp = getConfig()->srtvIP;
-                else
-                    // Prevents the game to crash if the IP does not match the PC's IP.
-                    cp = "127.0.0.1";
-            }
-        }
-    }
-    return _inet_addr(cp);
+    return _inet_addr(networkRemapInetAddr(cp));
 }
 
 #undef strstr

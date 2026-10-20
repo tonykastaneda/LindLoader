@@ -3,6 +3,7 @@
 #include "networkBridge.hpp"
 #include "symbolResolver.hpp"
 #include "../log/log.h"
+#include "../patching/patchNetwork.h"
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -239,15 +240,17 @@ namespace NetworkBridge
         MAP("getservbyname", bridgeGethostbyname_r);
     }
 
+    /* Same per-game address remapping as the Linux interposers
+       (patching/patchNetwork.c), e.g. Sega Race TV's cabinet addresses. */
     unsigned long bridgeInet_addr(const char *cp)
     {
-        // cp = "127.0.0.1";
-        return inet_addr(cp);
+        return inet_addr(networkRemapInetAddr(cp));
     }
 
     int bridgeInet_aton(const char *cp, struct in_addr *inp)
     {
-        unsigned long addr = bridgeInet_addr(cp);
+        cp = networkRemapInetAton(cp);
+        unsigned long addr = inet_addr(cp);
         if (addr == INADDR_NONE && strcmp(cp, "255.255.255.255") != 0)
             return 0;
         if (inp)

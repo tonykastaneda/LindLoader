@@ -66,7 +66,6 @@ const ControlBinding gDefaultDigitalBindings[] = {
     {INPUT_TYPE_JOY_AXIS, 0, 1, AXIS_MODE_DIGITAL, 1, false, PLAYER_1, LA_Down, -1, 0},
     {INPUT_TYPE_JOY_AXIS, 0, 0, AXIS_MODE_DIGITAL, -1, false, PLAYER_1, LA_Left, -1, 0},
     {INPUT_TYPE_JOY_AXIS, 0, 0, AXIS_MODE_DIGITAL, 1, false, PLAYER_1, LA_Right, -1, 0},
-    {INPUT_TYPE_JOY_BUTTON, 0, 11, AXIS_MODE_DIGITAL, 0, false, PLAYER_1, LA_Card1Insert, -1, 0},
     {INPUT_TYPE_JOY_BUTTON, 1, 11, AXIS_MODE_DIGITAL, 0, false, PLAYER_2, LA_Card2Insert, -1, 0},
 };
 
