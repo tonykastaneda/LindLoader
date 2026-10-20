@@ -24,3 +24,4 @@ void initBlitting();
 void blitSetWidthandHeightSize();
 int blitInitializeFbo();
 void blitStretch();
+void blitStretchRepeat();

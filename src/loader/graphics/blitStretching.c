@@ -12,14 +12,17 @@
 #include "../patching/patchResolution.h"
 // #include "glInitFunctions.h"
 
-#define CHECK_GL(msg)                                                                                                                      \
-    do                                                                                                                                     \
-    {                                                                                                                                      \
-        GLenum err = glad_glGetError();                                                                                                    \
-        if (err != GL_NO_ERROR)                                                                                                            \
-        {                                                                                                                                  \
-            log_error("OpenGL Error in " msg ": 0x%04X", err);                                                                             \
-        }                                                                                                                                  \
+/* Error checks force the driver to sync with the game thread (glGetError
+   is a round trip on threaded drivers), so only do them when debugging. */
+#define CHECK_GL(msg) \
+    do \
+    { \
+        if (getConfig()->showDebugMessages) \
+        { \
+            GLenum err = glad_glGetError(); \
+            if (err != GL_NO_ERROR) \
+                log_error("OpenGL Error in " msg ": 0x%04X", err); \
+        } \
     } while (0)
 
 // #ifdef _WIN32
@@ -118,6 +121,16 @@ int blitInitializeFbo()
     return 1;
 }
 
+/* Set while blitStretchRepeat() re-presents the frame already in the FBO. */
+static bool gBlitRepeat;
+
+void blitStretchRepeat()
+{
+    gBlitRepeat = true;
+    blitStretch();
+    gBlitRepeat = false;
+}
+
 void blitStretch()
 {
     if (!fboInitialized)
@@ -143,8 +156,9 @@ void blitStretch()
 
     if (fboInitialized && fboId > 0 && fboTextureId > 0 && g_SdlWindow)
     {
-        while (glad_glGetError() != GL_NO_ERROR)
-            ; // clear previous errors
+        if (getConfig()->showDebugMessages)
+            while (glad_glGetError() != GL_NO_ERROR)
+                ; // clear previous errors
 
         static int firstTime = 1;
         if (firstTime)
@@ -196,7 +210,8 @@ void blitStretch()
 
         // First blit: copy from framebuffer to FBO
         // In Chihiro mode, game rendered to our FBO via glBindFramebufferEXT hook, so skip
-        if (!gameIsOutrunChihiroMode)
+        // When repeating the last frame (vsync frame repeat) the FBO already holds it.
+        if (!gameIsOutrunChihiroMode && !gBlitRepeat)
         {
                 // Non-MSAA path: direct blit from FB0 → fboId
                 glad_glBindFramebuffer(GL_FRAMEBUFFER, fboId);

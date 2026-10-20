@@ -93,7 +93,10 @@ void bridgeGlutSwapBuffers(void)
     if ((p1CrossHairInitialized || p2CrossHairInitialized) || (gId == GHOST_SQUAD_EVOLUTION_SBNJ && config->borderEnabled))
         renderCrosshairs();
 
+    long long tBlit = fpsNowUs();
+    gStatGameUs = gStatFrameEndUs ? tBlit - gStatFrameEndUs : 0;
     blitStretch();
+    gStatBlitUs = fpsNowUs() - tBlit;
 
     if (config->borderEnabled && gId != GHOST_SQUAD_EVOLUTION_SBNJ)
         drawGameBorder(drawableW, drawableH, config->whiteBorderPercentage, config->blackBorderPercentage);
@@ -101,16 +104,42 @@ void bridgeGlutSwapBuffers(void)
     overlayInit();
     overlayRender();
 
+    vsyncBeforeSwap();
+    long long tSwap = fpsNowUs();
+
     SDL_GL_SwapWindow(g_SdlWindow);
+
+    gStatSwapUs = fpsNowUs() - tSwap;
+    /* Show this frame again on the following refreshes (see setupVsync). */
+    for (int r = vsyncExtraPresents(); r > 0; r--)
+    {
+        blitStretchRepeat();
+        if (config->borderEnabled && gId != GHOST_SQUAD_EVOLUTION_SBNJ)
+            drawGameBorder(drawableW, drawableH, config->whiteBorderPercentage, config->blackBorderPercentage);
+        overlayRender();
+        SDL_GL_SwapWindow(g_SdlWindow);
+    }
+    /* Wait until the frame is on screen before the game starts the next
+       one: keeps a single frame in flight, so each frame really gets its
+       refreshes and input lag stays at one frame. */
+    vsyncAfterPresents();
 
     if (config->fpsLimiter)
         frameTiming();
+    gStatFrameEndUs = fpsNowUs();
 
     double fps_val = calculateFps();
     static char windowTitle[256] = {0};
-    sprintf(windowTitle, "%s - FPS: %.2f", getGameName(), fps_val);
-    SDL_SetWindowTitle(g_SdlWindow, windowTitle);
-    fpsOverlayUpdateFps(fps_val);
+    static double shownFps = -1.0;
+    /* calculateFps() updates once a second; setting the title is a slow
+       cross-thread call on Windows, so only do it when the figure changes. */
+    if (fps_val != shownFps)
+    {
+        shownFps = fps_val;
+        sprintf(windowTitle, "%s - FPS: %.2f", getGameName(), fps_val);
+        SDL_SetWindowTitle(g_SdlWindow, windowTitle);
+        fpsOverlayUpdateFps(fps_val);
+    }
 
     if (gId == MJ4_SBPN_REVG || gId == MJ4_EVO_SBTA)
         mj4TouchHolding();

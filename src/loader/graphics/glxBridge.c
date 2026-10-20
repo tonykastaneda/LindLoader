@@ -154,7 +154,10 @@ bool bridgeGlxMakeCurrent(Display *dpy, GLXDrawable drawable, GLXContext ctx)
 
 int bridgeGlxSwapInterval(int interval)
 {
-    return SDL_GL_SetSwapInterval(interval) ? 0 : 1;
+    /* The loader owns the swap interval (VSYNC in linuxloader.ini, set up in
+       setupVsync()); a game asking for its own would undo the pacing. */
+    (void)interval;
+    return 0;
 }
 
 bool bridgeGlxQueryVersion(Display *dpy, int *major, int *minor)
@@ -443,23 +446,50 @@ void bridgeGlxSwapBuffers(Display *dpy, GLXDrawable drawable)
     if (p1CrossHairInitialized || p2CrossHairInitialized)
         renderCrosshairs();
 
+    long long tBlit = fpsNowUs();
+    gStatGameUs = gStatFrameEndUs ? tBlit - gStatFrameEndUs : 0;
     blitStretch();
+    gStatBlitUs = fpsNowUs() - tBlit;
     overlayInit();
     overlayRender();
 
     pollEvents();
 
+    vsyncBeforeSwap();
+    long long tSwap = fpsNowUs();
+
     SDL_GL_SwapWindow(getSDLWindow());
+
+    gStatSwapUs = fpsNowUs() - tSwap;
+    /* Show this frame again on the following refreshes (see setupVsync). */
+    for (int r = vsyncExtraPresents(); r > 0; r--)
+    {
+        blitStretchRepeat();
+        overlayRender();
+        SDL_GL_SwapWindow(getSDLWindow());
+    }
+    /* Wait until the frame is on screen before the game starts the next
+       one: keeps a single frame in flight, so each frame really gets its
+       refreshes and input lag stays at one frame. */
+    vsyncAfterPresents();
 
     if (config->fpsLimiter)
         frameTiming();
 
     static double localFps = 0.0;
     static char windowTitle[256] = {0};
+    static double shownFps = -1.0;
+    gStatFrameEndUs = fpsNowUs();
     localFps = calculateFps();
-    sprintf(windowTitle, "%s - FPS: %.2f", getGameName(), localFps);
-    SDL_SetWindowTitle(getSDLWindow(), windowTitle);
-    fpsOverlayUpdateFps(localFps);
+    /* calculateFps() updates once a second; setting the title is a slow
+       cross-thread call on Windows, so only do it when the figure changes. */
+    if (localFps != shownFps)
+    {
+        shownFps = localFps;
+        sprintf(windowTitle, "%s - FPS: %.2f", getGameName(), localFps);
+        SDL_SetWindowTitle(getSDLWindow(), windowTitle);
+        fpsOverlayUpdateFps(localFps);
+    }
 
     if (gId == QUIZ_AXA_SBMS || gId == QUIZ_AXA_SBUR_LIVE)
         mj4TouchHolding();

@@ -16,6 +16,12 @@ long clockNow();
 void fpsLimiter(FpsLimit *stats);
 double calculateFps();
 void frameTiming();
+void setupVsync(float refreshHz);
+void vsyncBeforeSwap(void);
+int vsyncExtraPresents(void);
+void vsyncAfterPresents(void);
+long long fpsNowUs(void);
+extern long long gStatBlitUs, gStatSwapUs, gStatGameUs, gStatFrameEndUs;
 
 void fpsOverlayUpdateFps(double fps);
 void fpsOverlayToggleVisibility(void);

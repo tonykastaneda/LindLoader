@@ -161,6 +161,7 @@ void setDefaultValues(EmulatorConfig *cfg)
     cfg->GPUVendor = AUTO_DETECT_GPU;
     cfg->fpsLimiter = 1;
     cfg->fpsTarget = 60.0f;
+    cfg->vsync = VSYNC_AUTO;
     cfg->phScreenMode = 2;
     cfg->phTestScreenSingle = 1;
     cfg->phUseZink = 1;
@@ -324,6 +325,8 @@ void applyIniConfig(EmulatorConfig *config, const IniConfig *ini)
     config->hideCursor = getInt(ini, "Display", "HIDE_CURSOR", config->hideCursor);
     config->fpsLimiter = getInt(ini, "Display", "FPS_LIMITER_ENABLED", config->fpsLimiter);
     config->fpsTarget = getFloat(ini, "Display", "FPS_TARGET", config->fpsTarget);
+    config->vsync = getInt(ini, "Display", "VSYNC", config->vsync);
+    config->frameStats = getInt(ini, "System", "FRAME_STATS", config->frameStats);
     config->fpsOverlayEnabled = getInt(ini, "Display", "FPS_OVERLAY_ENABLED", config->fpsOverlayEnabled);
     config->fpsOverlayPosition = getInt(ini, "Display", "FPS_OVERLAY_POSITION", config->fpsOverlayPosition);
 

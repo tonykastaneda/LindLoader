@@ -40,6 +40,9 @@ int createDefaultIni(const char *filePath)
     fprintf(file, "# Set to false if you don't want to limit the FPS\n");
     fprintf(file, "FPS_LIMITER_ENABLED = %s\n\n", defaults.fpsLimiter ? "true" : "false");
     fprintf(file, "# Set the target FPS (will only work if FPS_LIMITER_ENABLED = 1)\nFPS_TARGET = %.1f\n\n", defaults.fpsTarget);
+    fprintf(file, "# Vertical sync, stops tearing. AUTO: on, and when the display refresh rate is a multiple of\n"
+                  "# FPS_TARGET (60, 120, 240 Hz) the swap interval is chosen so vsync alone paces the game.\n"
+                  "# 0: off, 1: every refresh, 2: every second refresh, ...\nVSYNC = AUTO\n\n");
     fprintf(file, "# Set to true to enable the FPS overlay\n");
     fprintf(file, "FPS_OVERLAY_ENABLED = %s\n\n", defaults.fpsOverlayEnabled ? "true" : "false");
     fprintf(file, "# Set the position of the FPS overlay (0: TOP_LEFT, 1: TOP_RIGHT, 2: BOTTOM_LEFT, 3: BOTTOM_RIGHT)\n");

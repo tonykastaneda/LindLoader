@@ -196,6 +196,8 @@ void startSDL()
         exit(EXIT_FAILURE);
     }
 
+    setupVsync(displayMode->refresh_rate);
+
     if (getConfig()->showDebugMessages)
     {
         // Enable OpenGL debug output
