@@ -50,6 +50,7 @@ int gNumComboGroups = 0;
 // --- NEW GLOBALS FOR GUID MAPPING ---
 char gPlayerGUIDs[MAX_PLAYERS + 1][33]; // +1 for SYSTEM, 33 for 32 chars + null terminator
 bool gPlayerGUIDsDirty = false;         // Flag to check if we need to save the INI
+static char gControlsFile[1024];        // Controls file that was loaded; GUIDs are saved back to it
 
 // Direct lookup tables for high-performance event handling
 BindingPair gKeyBindings[SDL_SCANCODE_COUNT];
@@ -257,6 +258,7 @@ int initSdlInput(const char *controlsPath)
     {
         log_debug("controls config file loaded from %s\n", controlsPath);
         ini = iniLoad(controlsPath);
+        snprintf(gControlsFile, sizeof(gControlsFile), "%s", controlsPath);
     }
     else
     {
@@ -2323,8 +2325,10 @@ void saveGuidsToIni()
         return;
     }
 
-    printf("Saving updated controller GUIDs to controls.ini...\n");
-    IniConfig *ini = iniLoad("controls.ini");
+    // Save into the controls file that was loaded, not a controls.ini in the game folder.
+    const char *path = gControlsFile[0] ? gControlsFile : "controls.ini";
+    printf("Saving updated controller GUIDs to %s...\n", path);
+    IniConfig *ini = iniLoad(path);
     if (!ini)
     {
         // If the file doesn't exist, create an empty config in memory to save.
@@ -2347,13 +2351,13 @@ void saveGuidsToIni()
         }
     }
 
-    if (iniSave(ini, "controls.ini") == 0)
+    if (iniSave(ini, path) == 0)
     {
-        printf("Successfully saved controls.ini with updated GUIDs.\n");
+        printf("Successfully saved %s with updated GUIDs.\n", path);
     }
     else
     {
-        fprintf(stderr, "ERROR: Failed to save controls.ini.\n");
+        fprintf(stderr, "ERROR: Failed to save %s.\n", path);
     }
 
     iniFree(ini);
