@@ -7,6 +7,7 @@
 #undef __x86_64__
 
 #include <ctype.h>
+#include <dirent.h>
 #include <libgen.h>
 #include <limits.h>
 #include <stdint.h>
@@ -19,6 +20,7 @@
 #endif
 
 #include "config/configIni.h"
+#include "config/gameData.h"
 #include "input/evdevInput.h"
 #include "input/controlIniGen.h"
 #include "input/sdlInput.h"
@@ -419,6 +421,7 @@ void printUsage(char *programName)
     printf("  --library-path     | -L  Specifies library path\n");
     printf("  --gamepath         | -g  Specifies game path without ELF name\n");
     printf("  --create           | -C  Creates a default config or controls file. Use '--create --help' for more info.\n");
+    printf("  --identify <dir>   | -i  Lists the games found in <dir> and its subfolders, one JSON object per line\n");
 }
 
 void printCreateUsage(char *programName)
@@ -686,6 +689,91 @@ int listEvDevControllers()
 }
 #endif
 
+static void printJsonString(const char *s)
+{
+    putchar('"');
+    for (; s && *s; s++)
+    {
+        if (*s == '"' || *s == '\\')
+            putchar('\\');
+        putchar(*s);
+    }
+    putchar('"');
+}
+
+/**
+ * --identify: prints one JSON object per known game executable found in dir or its subfolders,
+ * for frontends. "dir" is the game path to pass with -g.
+ */
+void identifyGames(const char *dir, int depth)
+{
+    for (int i = 0; games[i] && strcmp(games[i], "END") != 0; i++)
+    {
+        char elf[MAX_PATH_LENGTH];
+        struct stat st;
+        snprintf(elf, sizeof(elf), "%s/%s", dir, games[i]);
+        if (stat(elf, &st) != 0 || !S_ISREG(st.st_mode))
+            continue;
+        uint32_t crc = 0;
+        if (calculateCRC32inChunks(elf, &crc) != 0)
+            continue;
+        crc ^= 0xFFFFFFFF;
+        // Games are identified like at load time: CRC of 0x4000 bytes from offset 10 of the ELF
+        // (the start of its first loaded segment).
+        uint32_t idCrc = 0;
+        uint8_t head[0x4000];
+        FILE *f = fopen(elf, "rb");
+        if (f)
+        {
+            if (fseek(f, 10, SEEK_SET) == 0 && fread(head, 1, sizeof(head), f) == sizeof(head))
+                idCrc = getCrc32Mem(head, sizeof(head));
+            fclose(f);
+        }
+        const GameData *g = getGameData(idCrc);
+        printf("{\"dir\":");
+        printJsonString(dir);
+        printf(",\"elf\":");
+        printJsonString(games[i]);
+        printf(",\"crc\":\"%08X\",\"clean\":%s,\"known\":%s", crc, lookupCrcTable(crc) ? "true" : "false",
+               g ? "true" : "false");
+        if (g)
+        {
+            printf(",\"title\":");
+            printJsonString(g->gameTitle);
+            printf(",\"short\":");
+            printJsonString(g->gameShortTitle);
+            printf(",\"dvp\":");
+            printJsonString(g->gameDVP);
+            printf(",\"id\":");
+            printJsonString(g->gameID);
+            printf(",\"year\":");
+            printJsonString(g->gameReleaseYear);
+            printf(",\"resolutions\":");
+            printJsonString(g->gameNativeResolutions);
+            printf(",\"width\":%d,\"height\":%d,\"status\":%d", g->width, g->height, (int)g->gameStatus);
+        }
+        printf("}\n");
+    }
+
+    if (depth >= 4)
+        return;
+    DIR *d = opendir(dir);
+    if (!d)
+        return;
+    struct dirent *e;
+    while ((e = readdir(d)) != NULL)
+    {
+        char sub[MAX_PATH_LENGTH];
+        struct stat st;
+        if (e->d_name[0] == '.')
+            continue;
+        snprintf(sub, sizeof(sub), "%s/%s", dir, e->d_name);
+        if (stat(sub, &st) == 0 && S_ISDIR(st.st_mode))
+            identifyGames(sub, depth + 1);
+    }
+    closedir(d);
+}
+
 int parseArgs(int argc, char *argv[], char *command, char *originalDir, char *gameELF, char *libraryPath)
 {
     controlsPath = "";
@@ -712,6 +800,12 @@ int parseArgs(int argc, char *argv[], char *command, char *originalDir, char *ga
     if (argc > 1 && (strcmp(argv[1], "--list-guids") == 0 || strcmp(argv[1], "-lg") == 0))
     {
         listSdlControllers();
+        return PARSE_ARGS_HELP;
+    }
+
+    if (argc > 2 && (strcmp(argv[1], "--identify") == 0 || strcmp(argv[1], "-i") == 0))
+    {
+        identifyGames(argv[2], 0);
         return PARSE_ARGS_HELP;
     }
 
