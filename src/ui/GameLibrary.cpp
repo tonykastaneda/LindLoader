@@ -190,8 +190,11 @@ void GameLibrary::extractImages(const QString &folder)
                     return other;
         return QFileInfo();
     };
-    std::stable_sort(images.begin(), images.end(), [&](const QFileInfo &a, const QFileInfo &b) {
-        return partOf(a).fileName().isEmpty() && !partOf(b).fileName().isEmpty();
+    QList<QPair<QFileInfo, QFileInfo>> work; // image, the main image it is a part of (or empty)
+    for (const QFileInfo &image : images)
+        work << qMakePair(image, partOf(image));
+    std::stable_sort(work.begin(), work.end(), [](const auto &a, const auto &b) {
+        return a.second.fileName().isEmpty() && !b.second.fileName().isEmpty();
     });
     // An unpacked game folder holds a ".unpacked-<image>" marker. It is named after the image, or
     // "<name> (bin)" when a folder of that name already exists (Windows ignores case: vf5fs = VF5FS).
@@ -203,9 +206,8 @@ void GameLibrary::extractImages(const QString &folder)
         return QFileInfo::exists(base) ? base + " (bin)" : base;
     };
 
-    for (const QFileInfo &image : images)
+    for (const auto &[image, main] : work)
     {
-        const QFileInfo main = partOf(image);
         const bool isPart = !main.fileName().isEmpty();
         const QString gameDir = folderFor(isPart ? main : image);
         const QString marker = gameDir + "/.unpacked-" + image.fileName();
@@ -243,11 +245,34 @@ void GameLibrary::extractImages(const QString &folder)
         const QDir top(partial);
         bool gameFolders = false;
         for (const QString &d : top.entryList(QDir::Dirs | QDir::NoDotAndDotDot))
-            gameFolders |= QFileInfo::exists(gameDir + "/" + d) || d == "rom" || d.startsWith("disk");
+            gameFolders |= d == "rom" || d.startsWith("disk") || QFileInfo(gameDir + "/" + d).isDir();
         QString sub = image.completeBaseName().mid(main.completeBaseName().size() + 1);
         while (!sub.isEmpty() && sub.back().isDigit())
             sub.chop(1);
-        mergeInto(partial, gameFolders ? gameDir : gameDir + "/" + sub);
+        if (!gameFolders)
+            mergeInto(partial, gameDir + "/" + sub);
+        else
+        {
+            // Each folder joins the game's folder of that name, which can sit one level down
+            // (vf5fs_ext.bin's rom belongs in disk1/rom). Batocera copies the disks over each
+            // other in order, so like there the last disk with that folder wins.
+            for (const QFileInfo &fi : top.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden))
+            {
+                QString target = gameDir + "/" + fi.fileName();
+                if (fi.isDir() && !QFileInfo(target).isDir())
+                    for (const QFileInfo &disk : QDir(gameDir).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot))
+                        if (QFileInfo(disk.filePath() + "/" + fi.fileName()).isDir())
+                            target = disk.filePath() + "/" + fi.fileName();
+                if (fi.isDir())
+                    mergeInto(fi.filePath(), target);
+                else
+                {
+                    QFile::remove(target);
+                    QDir().rename(fi.filePath(), target);
+                }
+            }
+            QDir(partial).removeRecursively();
+        }
         QFile f(marker);
         f.open(QIODevice::WriteOnly);
     }
