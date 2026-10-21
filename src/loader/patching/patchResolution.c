@@ -3727,6 +3727,10 @@ int initResolutionPatches()
         {
             // if (gWidth <= 1360 && gHeight <= 768)
             //     break;
+            // 640x480 is a native mode (resolution DIPs 000): the camera scale below
+            // (gWidth / 1360) would shrink its projection to 0.47.
+            if (gWidth == 640 && gHeight == 480)
+                break;
             patchMemoryFromString(0x08175b03, "9090");
             setVariable(0x08175b0b, gWidth);
             setVariable(0x08175b15, gHeight);
