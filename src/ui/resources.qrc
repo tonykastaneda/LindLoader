@@ -1,0 +1,8 @@
+<RCC>
+    <qresource prefix="/">
+        <file>style.qss</file>
+        <file>chevron.svg</file>
+        <file>switch-off.svg</file>
+        <file>switch-on.svg</file>
+    </qresource>
+</RCC>

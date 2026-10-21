@@ -1,10 +1,17 @@
 # LindLoader
 
-Play SEGA Lindbergh arcade games on Windows. Point LindLoader at a folder of your own game dumps. It recognizes the games and sets up their controls and graphics, then launches them. You can use it from a GUI, or from the command line, so frontends like LaunchBox, Playnite and ES-DE can launch the games.
+Play SEGA Lindbergh arcade games on Windows. Point LindLoader at a folder of your own game dumps. It recognizes the games and lets you set up graphics and controls, then plays them with one click.
 
-LindLoader runs games with [linuxloader](https://github.com/lindbergh-loader/linuxloader). It ships with its own fork of linuxloader ([tonykastaneda/linuxloader](https://github.com/tonykastaneda/linuxloader)), included as the `loader/` submodule. Fixes in the fork:
+LindLoader has two parts:
 
-- **Vsync and frame pacing:** an adaptive frame repeat, so games hold a steady 60 fps on high-refresh displays.
+- **`linuxloader.exe`**, the emulator core: our version of [Linux Loader](https://github.com/lindbergh-loader/linuxloader), in `src/loader`.
+- **`LindLoader.exe`**, the Qt app you use to manage and launch games, in `src/ui`.
+
+LindLoader does not include or download games, and it does not decrypt anything. Use clean dumps of games you own.
+
+## What's different in our Linux Loader
+
+- **Vsync and frame pacing:** an adaptive frame repeat, so games hold a steady 60 fps on high-refresh displays without tearing.
 - **Virtua Tennis 3 Rev C:**
   - The original camera at any resolution.
   - A HUD that fits the screen.
@@ -15,47 +22,32 @@ LindLoader runs games with [linuxloader](https://github.com/lindbergh-loader/lin
   - The game's own 4:3 mode.
 - **Sega Race TV:** runs on Windows, including its network setup.
 - **Controller IDs** are saved to the controls file that was loaded.
-
-LindLoader does not include or download games, and it does not decrypt anything. Use clean dumps of games you own.
-
-## Status
-
-Early. Working now:
-
-- The loader and the self-contained per-game folder layout, with a `.vbs` launcher in each game folder.
-- Build and test tools.
-
-Next steps:
-
-- [ ] `core`: scan a folder and recognize games; read and write `linuxloader.ini` and `controls.ini`; build the launch command.
-- [ ] `lindloader-cli`: `scan`, `run`, `set`, `bind`, for frontends and scripts.
-- [ ] `lindloader` GUI (SDL3 + Dear ImGui): works with a mouse on a desktop or a controller on a TV. Settings and press-to-bind controls.
+- **`--identify <folder>`** lists the games in a folder as JSON, for frontends.
 
 ## Layout
 
 ```
-loader/      linuxloader fork (git submodule)
-tools/       build and test tools, see tools/README.md
-build/       build output (ignored)
-games/       local self-contained game folders (ignored)
-```
-
-Each game folder is self-contained and can be moved anywhere:
-
-```
-games/VF5FS/
-  vf5fs.vbs          launcher (double-click to play)
-  loader/            linuxloader.exe + ll-deps
-  game/              the game files
-  linuxloader.ini    settings
-  controls.ini       controls
+src/loader/       Linux Loader with our changes (the emulator core)
+src/ui/           the LindLoader Qt app
+tools/            build and test tools, see tools/README.md
+linuxloader.exe   built core   ┐
+ll-deps/          its DLLs     ├ build output (not in git)
+LindLoader.exe    built app    ┘
 ```
 
 ## Building (Windows)
 
-Requires MSYS2 with the MinGW32 toolchain.
+You need [MSYS2](https://www.msys2.org/) with:
+
+- **For the core:** the MinGW32 toolchain. Linux Loader is a 32-bit program.
+- **For the app:** the UCRT64 toolchain with `mingw-w64-ucrt-x86_64-qt6-static`. That makes `LindLoader.exe` a single file with no Qt DLLs.
 
 ```
-git clone --recursive https://github.com/tonykastaneda/LindLoader.git
 tools/build.sh
 ```
+
+## Credits
+
+LindLoader is built on **[Linux Loader](https://github.com/lindbergh-loader/linuxloader)** by the **Linux Loader Development Team**. Their loader runs Lindbergh games outside the original hardware, and almost all of the emulation in LindLoader is their work. Thank you to everyone who contributed to it.
+
+Linux Loader is licensed under [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International](https://creativecommons.org/licenses/by-nc-sa/4.0/). LindLoader, including our changes to the loader and the app, is shared under the same license (see [LICENSE](LICENSE)). It is free and non-commercial.

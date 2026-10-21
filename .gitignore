@@ -1,8 +1,11 @@
 # Local game setups (game files are not redistributable)
 /games/
 
-# Build output
+# Build output and the runtime files built from it
 /build/
+/linuxloader.exe
+/ll-deps/
+/LindLoader.exe
 
 # Test tool output
 /tools/logs/
