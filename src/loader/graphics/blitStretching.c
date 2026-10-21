@@ -82,6 +82,12 @@ void blitSetWidthandHeightSize()
         blitWidth = 1024;
         blitHeight = 768;
     }
+    else if (gId == VIRTUA_FIGHTER_5_FINAL_SHOWDOWN_SBXX_REVB && gWidth * 3 <= gHeight * 4 && gWidth != 640)
+    {
+        // Its 4:3 mode renders at 1024x768 (see patchResolution.c).
+        blitWidth = 1024;
+        blitHeight = 768;
+    }
     else
     {
         blitWidth = gWidth;

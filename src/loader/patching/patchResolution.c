@@ -32,7 +32,7 @@ int srtvW, srtvH;
 int phX, phY, phW, phH;
 int phX2, phY2, phW2, phH2;
 
-int vf5FSwidth;
+int vf5FSwidth, vf5FSheight;
 
 void *glVertex3fPatchRetAddrABC[4];
 void *glVertex3fNoPatchRetAddrABC[4];
@@ -322,7 +322,8 @@ void bridgeglViewport(GLint x, GLint y, GLsizei width, GLsizei height)
     {
         if ((gWidth != 640 && gHeight != 480) || (gWidth != 1280 && gHeight != 768))
         {
-            if (width == vf5FSwidth)
+            // Not in the 4:3 mode (vf5FSheight set): blitStretch scales that frame instead.
+            if (!vf5FSheight && width == vf5FSwidth)
             {
                 width = gWidth;
             }
@@ -3572,6 +3573,17 @@ int initResolutionPatches()
             if ((gWidth == 640 && gHeight == 480) || (gWidth == 1280 && gHeight == 768))
                 break;
             patchMemoryFromString(0x080548c4, "01");         // Enable Anti Alias
+            if (gWidth * 3 <= gHeight * 4)
+            {
+                // 4:3: use the game's own 1024x768 mode (entry 3 of the mode table at 0x088d2a60)
+                // unchanged. Its HUD draws the life bars and timer digits in pixels, so any other
+                // size breaks them; anti-aliasing renders the 3D at twice the size and
+                // blitStretch scales the frame to the window.
+                patchMemoryFromString(0x080556e6, "b803000000"); // Mode 3 in place of the Dip Switches.
+                vf5FSwidth = 1024;
+                vf5FSheight = 768;
+                break;
+            }
             patchMemoryFromString(0x080556e6, "b80a000000"); // Skips resolution set by the Dip Switches.
             vf5FSwidth = (gHeight * 5) / 3;
             setVariable(0x088d2b78, vf5FSwidth);
