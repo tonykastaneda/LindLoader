@@ -8,5 +8,7 @@
         <file>icons/gamepad.svg</file>
         <file>icons/monitor.svg</file>
         <file>icons/info.svg</file>
+        <file>images/arcade.svg</file>
+        <file>images/wheel.svg</file>
     </qresource>
 </RCC>

@@ -5,6 +5,7 @@
 #include <QDesktopServices>
 #include <QDialogButtonBox>
 #include <QDir>
+#include <QDoubleSpinBox>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -13,8 +14,11 @@
 #include <QListWidget>
 #include <QPushButton>
 #include <QStackedWidget>
+#include <QTabWidget>
 #include <QUrl>
 #include <QVBoxLayout>
+
+#include "ControllerSettingsWidget.h"
 
 namespace
 {
@@ -42,13 +46,21 @@ QLineEdit *readOnly(const QString &text)
     e->setReadOnly(true);
     return e;
 }
+
+QWidget *page(QVBoxLayout **layout)
+{
+    auto *w = new QWidget;
+    auto *l = new QVBoxLayout(w);
+    *layout = l;
+    return w;
+}
 } // namespace
 
 GamePropertiesDialog::GamePropertiesDialog(const Game &game, GameLibrary &library, QWidget *parent)
     : QDialog(parent), m_game(game), m_library(library)
 {
     setWindowTitle(game.title + " Properties");
-    resize(760, 520);
+    resize(1000, 640);
 
     QString error;
     if (m_library.ensureConfig(m_game, &error))
@@ -58,13 +70,15 @@ GamePropertiesDialog::GamePropertiesDialog(const Game &game, GameLibrary &librar
     categories->setFixedWidth(170);
     categories->setIconSize(QSize(20, 20));
     categories->addItem(new QListWidgetItem(QIcon(":/icons/info.svg"), "Summary"));
-    categories->addItem(new QListWidgetItem(QIcon(":/icons/monitor.svg"), "Display"));
+    categories->addItem(new QListWidgetItem(QIcon(":/icons/monitor.svg"), "Graphics"));
+    categories->addItem(new QListWidgetItem(QIcon(":/icons/settings.svg"), "Emulation"));
     categories->addItem(new QListWidgetItem(QIcon(":/icons/gamepad.svg"), "Controls"));
 
     auto *pages = new QStackedWidget;
     pages->addWidget(buildSummaryPage());
-    pages->addWidget(buildDisplayPage());
-    pages->addWidget(buildControlsPage());
+    pages->addWidget(buildGraphicsPage());
+    pages->addWidget(buildEmulationPage());
+    pages->addWidget(new ControllerSettingsWidget(m_game, m_library));
     connect(categories, &QListWidget::currentRowChanged, pages, &QStackedWidget::setCurrentIndex);
     categories->setCurrentRow(0);
 
@@ -83,8 +97,8 @@ GamePropertiesDialog::GamePropertiesDialog(const Game &game, GameLibrary &librar
 
 QWidget *GamePropertiesDialog::buildSummaryPage()
 {
-    auto *page = new QWidget;
-    auto *l = new QVBoxLayout(page);
+    QVBoxLayout *l;
+    QWidget *w = page(&l);
     auto *box = new QGroupBox("Game");
     auto *form = new QFormLayout(box);
     form->addRow("Title:", readOnly(m_game.title));
@@ -108,15 +122,17 @@ QWidget *GamePropertiesDialog::buildSummaryPage()
     ff->addRow("", open);
     l->addWidget(files);
     l->addStretch();
-    return page;
+    return w;
 }
 
-QWidget *GamePropertiesDialog::buildDisplayPage()
+QWidget *GamePropertiesDialog::buildGraphicsPage()
 {
-    auto *page = new QWidget;
-    auto *l = new QVBoxLayout(page);
+    auto *tabs = new QTabWidget;
 
-    auto *box = new QGroupBox("Rendering");
+    // Display
+    QVBoxLayout *dl;
+    QWidget *display = page(&dl);
+    auto *box = new QGroupBox("Display");
     auto *form = new QFormLayout(box);
     auto *resolution = new QComboBox;
     for (const auto &r : kResolutions)
@@ -129,60 +145,108 @@ QWidget *GamePropertiesDialog::buildDisplayPage()
         res = resolution->count() - 1;
     }
     resolution->setCurrentIndex(res);
-    form->addRow("Resolution:", resolution);
-
-    auto *vsync = new QComboBox;
-    vsync->addItem("Auto (Recommended)", "AUTO");
-    vsync->addItem("On", "1");
-    vsync->addItem("Off", "0");
-    const int vs = vsync->findData(m_ini.value("VSYNC", "AUTO").toUpper());
-    vsync->setCurrentIndex(vs < 0 ? 0 : vs);
-    form->addRow("Vertical Sync:", vsync);
-    l->addWidget(box);
-
-    auto *screen = new QGroupBox("Screen");
-    auto *sl = new QVBoxLayout(screen);
-    auto *fullscreen = new QCheckBox("Start Fullscreen");
-    fullscreen->setChecked(m_ini.value("FULLSCREEN", "true") == "true");
-    auto *aspect = new QCheckBox("Keep Aspect Ratio (black bars instead of stretching)");
-    aspect->setChecked(m_ini.value("KEEP_ASPECT_RATIO", "true") == "true");
-    auto *fps = new QCheckBox("Show FPS Overlay");
-    fps->setChecked(m_ini.value("FPS_OVERLAY_ENABLED", "false") == "true");
-    sl->addWidget(fullscreen);
-    sl->addWidget(aspect);
-    sl->addWidget(fps);
-    l->addWidget(screen);
-    l->addStretch();
-
     connect(resolution, &QComboBox::currentIndexChanged, this, [this, resolution] {
         const QStringList wh = resolution->currentData().toStringList();
         save("WIDTH", wh.value(0));
         save("HEIGHT", wh.value(1));
     });
-    connect(vsync, &QComboBox::currentIndexChanged, this, [this, vsync] { save("VSYNC", vsync->currentData().toString()); });
-    connect(fullscreen, &QCheckBox::toggled, this, [this](bool on) { save("FULLSCREEN", on ? "true" : "false"); });
-    connect(aspect, &QCheckBox::toggled, this, [this](bool on) { save("KEEP_ASPECT_RATIO", on ? "true" : "false"); });
-    connect(fps, &QCheckBox::toggled, this, [this](bool on) { save("FPS_OVERLAY_ENABLED", on ? "true" : "false"); });
-    return page;
+    form->addRow("Resolution:", resolution);
+    form->addRow("Vertical Sync:", combo("VSYNC", "AUTO", {{"Auto (Recommended)", "AUTO"}, {"On", "1"}, {"Off", "0"}}));
+    form->addRow(check("Start Fullscreen", "FULLSCREEN", false));
+    form->addRow(check("Keep Aspect Ratio (black bars instead of stretching)", "KEEP_ASPECT_RATIO", true));
+    dl->addWidget(box);
+
+    auto *frame = new QGroupBox("Frame Rate");
+    auto *ff = new QFormLayout(frame);
+    auto *target = new QDoubleSpinBox;
+    target->setRange(30.0, 240.0);
+    target->setDecimals(2);
+    target->setSuffix(" FPS");
+    target->setValue(m_ini.value("FPS_TARGET", "60.0").toDouble());
+    connect(target, &QDoubleSpinBox::valueChanged, this, [this](double v) { save("FPS_TARGET", QString::number(v, 'f', 1)); });
+    QCheckBox *limiter = check("Limit Frame Rate", "FPS_LIMITER_ENABLED", true);
+    target->setEnabled(limiter->isChecked());
+    connect(limiter, &QCheckBox::toggled, target, &QWidget::setEnabled);
+    ff->addRow(limiter);
+    ff->addRow("Target:", target);
+    dl->addWidget(frame);
+    dl->addStretch();
+    tabs->addTab(display, "Display");
+
+    // On-Screen Display
+    QVBoxLayout *ol;
+    QWidget *osd = page(&ol);
+    auto *overlay = new QGroupBox("On-Screen Display");
+    auto *of = new QFormLayout(overlay);
+    of->addRow(check("Show FPS", "FPS_OVERLAY_ENABLED", false));
+    of->addRow("Position:", combo("FPS_OVERLAY_POSITION", "0",
+                                  {{"Top Left", "0"}, {"Top Right", "1"}, {"Bottom Left", "2"}, {"Bottom Right", "3"}}));
+    ol->addWidget(overlay);
+    auto *cursor = new QGroupBox("Mouse Cursor");
+    auto *cl = new QVBoxLayout(cursor);
+    cl->addWidget(check("Hide Mouse Cursor", "HIDE_CURSOR", true));
+    ol->addWidget(cursor);
+    ol->addStretch();
+    tabs->addTab(osd, "On-Screen Display");
+
+    // Advanced
+    QVBoxLayout *al;
+    QWidget *advanced = page(&al);
+    auto *rendering = new QGroupBox("Rendering");
+    auto *rl = new QVBoxLayout(rendering);
+    rl->addWidget(check("Boost Render Resolution (House of the Dead 4, 2 Spicy, Harley, Rambo, HOD EX, ID4/ID5, LGJ)",
+                        "BOOST_RENDER_RES", true));
+    rl->addWidget(check("Use the Game's Original Fonts", "DISABLE_BUILTIN_FONT", false));
+    rl->addWidget(check("Use the Game's Original Logos", "DISABLE_BUILTIN_LOGOS", false));
+    al->addWidget(rendering);
+    al->addStretch();
+    tabs->addTab(advanced, "Advanced");
+
+    return tabs;
 }
 
-QWidget *GamePropertiesDialog::buildControlsPage()
+QWidget *GamePropertiesDialog::buildEmulationPage()
 {
-    auto *page = new QWidget;
-    auto *l = new QVBoxLayout(page);
-    auto *box = new QGroupBox("Controller Mapping");
-    auto *bl = new QVBoxLayout(box);
-    auto *text = new QLabel("Button mapping is coming in a later version. Until then, this game's controls are in its "
-                            "controls.ini.");
-    text->setWordWrap(true);
-    auto *open = new QPushButton("Open controls.ini");
-    connect(open, &QPushButton::clicked, this,
-            [this] { QDesktopServices::openUrl(QUrl::fromLocalFile(m_game.controlsPath())); });
-    bl->addWidget(text);
-    bl->addWidget(open, 0, Qt::AlignLeft);
+    QVBoxLayout *l;
+    QWidget *w = page(&l);
+    auto *box = new QGroupBox("System");
+    auto *form = new QFormLayout(box);
+    form->addRow("Region:", combo("REGION", "EX", {{"Japan", "JP"}, {"USA", "US"}, {"Export", "EX"}}));
+    form->addRow("Free Play:", combo("FREEPLAY", "none", {{"Game Default", "none"}, {"On", "true"}, {"Off", "false"}}));
+    form->addRow("Lindbergh Colour:", combo("LINDBERGH_COLOUR", "YELLOW",
+                                            {{"Yellow", "YELLOW"},
+                                             {"Red", "RED"},
+                                             {"Blue", "BLUE"},
+                                             {"Silver", "SILVER"},
+                                             {"Red EX", "REDEX"}}));
     l->addWidget(box);
     l->addStretch();
-    return page;
+    return w;
+}
+
+QCheckBox *GamePropertiesDialog::check(const QString &text, const QString &key, bool fallback)
+{
+    auto *box = new QCheckBox(text);
+    box->setChecked(m_ini.value(key, fallback ? "true" : "false").toLower() == "true");
+    connect(box, &QCheckBox::toggled, this, [this, key](bool on) { save(key, on ? "true" : "false"); });
+    return box;
+}
+
+QComboBox *GamePropertiesDialog::combo(const QString &key, const QString &fallback, const Choices &choices)
+{
+    auto *box = new QComboBox;
+    for (const auto &c : choices)
+        box->addItem(c.first, c.second);
+    const QString current = m_ini.value(key, fallback).remove('"');
+    int i = box->findData(current, Qt::UserRole, Qt::MatchFixedString);
+    if (i < 0)
+    {
+        box->addItem(current + " (custom)", current);
+        i = box->count() - 1;
+    }
+    box->setCurrentIndex(i);
+    connect(box, &QComboBox::currentIndexChanged, this, [this, key, box] { save(key, box->currentData().toString()); });
+    return box;
 }
 
 void GamePropertiesDialog::save(const QString &key, const QString &value)

@@ -97,6 +97,7 @@ void MainWindow::buildActions()
     m_rescan = new QAction(QIcon(":/icons/refresh.svg"), "&Rescan Game List", this);
     m_rescan->setShortcut(QKeySequence(Qt::Key_F5));
     m_properties = new QAction(QIcon(":/icons/settings.svg"), "&Properties...", this);
+    m_properties->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Return));
     m_openFolder = new QAction(QIcon(":/icons/folder-open.svg"), "Open Game &Folder", this);
     m_exit = new QAction("E&xit", this);
 

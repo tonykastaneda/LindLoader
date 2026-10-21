@@ -13,6 +13,7 @@ struct Game
     QString dvp;         // "DVP-5020"
     QString year;
     QString resolutions; // native resolutions, e.g. "640x480, 1360x768"
+    QString type;        // control layout: "digital", "driving", "shooting", "flying" or "mahjong"
     QString gameDir;     // folder passed to the loader with -g
     QString elf;
     QString crc;
@@ -42,6 +43,9 @@ public:
 
     // Makes sure the game has a linuxloader.ini and controls.ini, creating defaults if needed.
     bool ensureConfig(const Game &game, QString *error);
+
+    // Writes the loader's default linuxloader.ini ("config") or controls.ini ("controls") to dir/name.
+    bool createDefaults(const QString &kind, const QString &dir, const QString &name) const;
 
 signals:
     void scanned();

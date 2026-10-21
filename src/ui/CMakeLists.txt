@@ -10,7 +10,9 @@ set(CMAKE_AUTORCC ON)
 if(MINGW)
     set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
 endif()
-find_package(Qt6 REQUIRED COMPONENTS Widgets Concurrent Svg)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Concurrent Svg SvgWidgets)
+# SDL3 reads the controllers for binding, the same way linuxloader.exe does.
+find_package(SDL3 REQUIRED CONFIG COMPONENTS SDL3-static)
 # HarfBuzz's CMake package always points at its DLL; use the static library instead.
 if(MINGW AND TARGET harfbuzz::harfbuzz)
     find_library(HARFBUZZ_STATIC NAMES libharfbuzz.a REQUIRED)
@@ -23,11 +25,14 @@ qt_add_executable(LindLoader WIN32
     MainWindow.cpp MainWindow.h
     GameLibrary.cpp GameLibrary.h
     GamePropertiesDialog.cpp GamePropertiesDialog.h
+    ControllerSettingsWidget.cpp ControllerSettingsWidget.h
+    Gamepads.cpp Gamepads.h
+    Bindings.cpp Bindings.h
     IniFile.cpp IniFile.h
     resources.qrc
 )
 
-target_link_libraries(LindLoader PRIVATE Qt6::Widgets Qt6::Concurrent Qt6::Svg)
+target_link_libraries(LindLoader PRIVATE Qt6::Widgets Qt6::Concurrent Qt6::Svg Qt6::SvgWidgets SDL3::SDL3-static)
 qt_import_plugins(LindLoader
     INCLUDE Qt6::QSvgPlugin Qt6::QSvgIconPlugin
     EXCLUDE_BY_TYPE imageformats platforminputcontexts

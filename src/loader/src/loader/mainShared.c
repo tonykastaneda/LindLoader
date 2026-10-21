@@ -751,6 +751,8 @@ void identifyGames(const char *dir, int depth)
             printf(",\"resolutions\":");
             printJsonString(g->gameNativeResolutions);
             printf(",\"width\":%d,\"height\":%d,\"status\":%d", g->width, g->height, (int)g->gameStatus);
+            static const char *const types[] = {"shooting", "driving", "digital", "flying", "mahjong"};
+            printf(",\"type\":\"%s\"", types[g->gameType]);
         }
         printf("}\n");
     }

@@ -101,6 +101,7 @@ void GameLibrary::rescan()
                 g.dvp = o["dvp"].toString();
                 g.year = o["year"].toString();
                 g.resolutions = o["resolutions"].toString();
+                g.type = o["type"].toString();
                 g.configDir = findConfigDir(g.gameDir, folder, g.shortTitle);
                 found << g;
             }
@@ -112,20 +113,13 @@ void GameLibrary::rescan()
 bool GameLibrary::ensureConfig(const Game &game, QString *error)
 {
     QDir().mkpath(game.configDir);
-    const QString nativeDir = QDir::toNativeSeparators(game.configDir);
     const struct
     {
         QString path, kind, name;
     } files[] = {{game.configPath(), "config", "linuxloader.ini"}, {game.controlsPath(), "controls", "controls.ini"}};
     for (const auto &f : files)
     {
-        if (QFileInfo::exists(f.path))
-            continue;
-        QProcess p;
-        p.setWorkingDirectory(m_appDir);
-        p.start(loaderPath(), {"--create", f.kind, nativeDir, f.name});
-        p.waitForFinished(30000);
-        if (!QFileInfo::exists(f.path))
+        if (!QFileInfo::exists(f.path) && !createDefaults(f.kind, game.configDir, f.name))
         {
             if (error)
                 *error = QStringLiteral("Could not create %1").arg(f.path);
@@ -133,4 +127,13 @@ bool GameLibrary::ensureConfig(const Game &game, QString *error)
         }
     }
     return true;
+}
+
+bool GameLibrary::createDefaults(const QString &kind, const QString &dir, const QString &name) const
+{
+    QProcess p;
+    p.setWorkingDirectory(m_appDir);
+    p.start(loaderPath(), {"--create", kind, QDir::toNativeSeparators(dir), name});
+    p.waitForFinished(30000);
+    return QFileInfo::exists(dir + "/" + name);
 }

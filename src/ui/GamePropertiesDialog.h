@@ -1,6 +1,8 @@
 #pragma once
 
 #include <QDialog>
+#include <QList>
+#include <QPair>
 
 #include "GameLibrary.h"
 #include "IniFile.h"
@@ -17,9 +19,15 @@ public:
     GamePropertiesDialog(const Game &game, GameLibrary &library, QWidget *parent = nullptr);
 
 private:
+    using Choices = QList<QPair<QString, QString>>; // label, linuxloader.ini value
+
     QWidget *buildSummaryPage();
-    QWidget *buildDisplayPage();
-    QWidget *buildControlsPage();
+    QWidget *buildGraphicsPage();
+    QWidget *buildEmulationPage();
+
+    // A checkbox or combo box that edits one linuxloader.ini key.
+    QCheckBox *check(const QString &text, const QString &key, bool fallback);
+    QComboBox *combo(const QString &key, const QString &fallback, const Choices &choices);
     void save(const QString &key, const QString &value);
 
     Game m_game;
