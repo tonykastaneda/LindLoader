@@ -1,3 +1,0 @@
-[submodule "loader"]
-	path = src/loader
-	url = https://github.com/tonykastaneda/linuxloader.git
