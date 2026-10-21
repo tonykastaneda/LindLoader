@@ -1,13 +1,13 @@
 /* Play launcher for a self-contained game folder:
  *
- *   <folder>\Play <game>.exe   (this program)
+ *   <folder>\<game>.exe        (this program, e.g. vt3.exe)
  *   <folder>\loader\linuxloader.exe
  *   <folder>\<GAME_DIR>        (the game files, GAME_DIR set at build time)
  *   <folder>\linuxloader.ini
  *   <folder>\controls.ini
  *
  * Starts the loader with that folder's game and settings, without a console window.
- * Build: gcc -mwindows -DGAME_DIR="\"game\\\\disk0\"" -o "Play <game>.exe" play.c */
+ * Build: gcc -mwindows -DGAME_DIR="\"game\\\\disk0\"" -o <game>.exe play.c */
 #include <windows.h>
 #include <stdio.h>
 
