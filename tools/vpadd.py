@@ -54,8 +54,12 @@ def main():
     done = 0
     log("daemon started")
     while True:
-        with open(CMD) as f:
-            lines = [l.split() for l in f.read().splitlines() if l.strip()]
+        try:
+            with open(CMD) as f:
+                lines = [l.split() for l in f.read().splitlines() if l.strip()]
+        except PermissionError:  # another process is appending to cmd.txt
+            time.sleep(0.05)
+            continue
         for parts in lines[done:]:
             try:
                 run(pads, parts)

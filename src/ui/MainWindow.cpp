@@ -74,7 +74,7 @@ MainWindow::MainWindow(const QString &appDir, QWidget *parent) : QMainWindow(par
     statusBar()->addPermanentWidget(m_statusGames);
 
     connect(m_list, &QTreeWidget::itemDoubleClicked, this, &MainWindow::play);
-    connect(m_list, &QTreeWidget::currentItemChanged, this, &MainWindow::updateActions);
+    connect(m_list, &QTreeWidget::itemSelectionChanged, this, &MainWindow::updateActions);
     connect(m_list, &QTreeWidget::customContextMenuRequested, this, &MainWindow::showContextMenu);
     connect(&m_library, &GameLibrary::scanned, this, &MainWindow::refreshList);
     connect(&m_library, &GameLibrary::extracting, this, [this](const QString &image, int percent) {
@@ -190,7 +190,9 @@ QWidget *MainWindow::buildEmptyState()
 
 const Game *MainWindow::currentGame() const
 {
-    const QTreeWidgetItem *item = m_list->currentItem();
+    // The highlighted row; selecting a row through accessibility tools doesn't move the current item.
+    const QList<QTreeWidgetItem *> selected = m_list->selectedItems();
+    const QTreeWidgetItem *item = selected.isEmpty() ? m_list->currentItem() : selected.first();
     if (!item)
         return nullptr;
     const int i = item->data(ColTitle, RoleIndex).toInt();
@@ -245,10 +247,12 @@ void MainWindow::updateActions()
 
 void MainWindow::showProperties()
 {
+    // A separate window like DuckStation's and PCSX2's: the game list stays usable.
     if (const Game *g = currentGame())
     {
-        GamePropertiesDialog dialog(*g, m_library, this);
-        dialog.exec();
+        auto *dialog = new GamePropertiesDialog(*g, m_library, this);
+        dialog->setAttribute(Qt::WA_DeleteOnClose);
+        dialog->show();
     }
 }
 

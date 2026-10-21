@@ -79,7 +79,11 @@ GamePropertiesDialog::GamePropertiesDialog(const Game &game, GameLibrary &librar
     pages->addWidget(buildGraphicsPage());
     pages->addWidget(buildEmulationPage());
     pages->addWidget(new ControllerSettingsWidget(m_game, m_library));
-    connect(categories, &QListWidget::currentRowChanged, pages, &QStackedWidget::setCurrentIndex);
+    // Follow the highlighted category; selecting one through accessibility tools doesn't move the current row.
+    connect(categories, &QListWidget::itemSelectionChanged, pages, [categories, pages] {
+        if (!categories->selectedItems().isEmpty())
+            pages->setCurrentIndex(categories->row(categories->selectedItems().first()));
+    });
     categories->setCurrentRow(0);
 
     auto *body = new QHBoxLayout;
