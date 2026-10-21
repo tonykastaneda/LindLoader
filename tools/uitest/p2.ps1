@@ -1,4 +1,4 @@
-. "C:\Users\tonyk\Documents\GitHub\LindLoader\tools\logs\UI\lib.ps1"
+. "C:\Users\tonyk\Documents\GitHub\LindLoader\toolsItestib.ps1"
 $log = "$T\logs\UI\p2.log"; "" | Set-Content $log
 $dlg = OpenControls "Virtua Fighter 5 Final Showdown REV B"
 # Player 2 button
