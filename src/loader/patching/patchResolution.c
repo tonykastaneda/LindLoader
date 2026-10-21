@@ -3747,9 +3747,13 @@ int initResolutionPatches()
             setVariable(0x08175b0b, gWidth);
             setVariable(0x08175b15, gHeight);
 
-            // Native heights: 768 in the widescreen mode, 480 in the 4:3 mode
-            // (the game picks widescreen when width / height > 4 / 3).
-            vt3HudScale = gHeight / (gWidth * 3 > gHeight * 4 ? 768.0f : 480.0f);
+            // Fit the HUD layout to the screen: it spans 1360x768 in the widescreen mode
+            // and 960x720 in the 4:3 mode (measured against the native 640x480 HUD).
+            // The game picks widescreen when width / height > 4 / 3.
+            if (gWidth * 3 > gHeight * 4)
+                vt3HudScale = fminf(gWidth / 1360.0f, gHeight / 768.0f);
+            else
+                vt3HudScale = fminf(gWidth / 960.0f, gHeight / 720.0f);
             replaceCallAtAddress(0x081ccf29, vt3HudSetPerspective);
         }
         break;
