@@ -1,8 +1,11 @@
 /* Test helper: play a key script into the foreground window with SendInput.
-   Script lines: "<vk hex> <hold ms> <pause ms>" or "wait <ms>". */
+   Script lines: "<vk hex> <hold ms> <pause ms>", "wait <ms>", or "title <window title text>"
+   (default "Virtua Tennis"). */
 #include <windows.h>
 #include <stdio.h>
 #include <string.h>
+
+static char gTitle[128] = "Virtua Tennis";
 
 /* Keep the game window in front: input goes to the foreground window. */
 static void focus_game(void)
@@ -10,7 +13,7 @@ static void focus_game(void)
     HWND w = FindWindowA(NULL, NULL);
     for (w = GetTopWindow(NULL); w; w = GetNextWindow(w, GW_HWNDNEXT)) {
         char t[256];
-        if (IsWindowVisible(w) && GetWindowTextA(w, t, sizeof(t)) && strstr(t, "Virtua Tennis")) {
+        if (IsWindowVisible(w) && GetWindowTextA(w, t, sizeof(t)) && strstr(t, gTitle)) {
             if (GetForegroundWindow() != w) {
                 DWORD fgThread = GetWindowThreadProcessId(GetForegroundWindow(), NULL), me = GetCurrentThreadId();
                 AttachThreadInput(fgThread, me, TRUE);
@@ -46,7 +49,9 @@ int WINAPI WinMain(HINSTANCE a, HINSTANCE b, LPSTR c, int d)
         return 1;
     while (fgets(line, sizeof(line), f)) {
         unsigned vk, hold, pause;
-        if (sscanf(line, "wait %u", &pause) == 1) {
+        if (sscanf(line, "title %127[^\r\n]", gTitle) == 1) {
+            continue;
+        } else if (sscanf(line, "wait %u", &pause) == 1) {
             Sleep(pause);
         } else if (sscanf(line, "%x %u %u", &vk, &hold, &pause) == 3) {
             focus_game();

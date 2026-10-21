@@ -60,13 +60,14 @@ float angleABC;
 float newVT3, newVT3HW, newVT3HH;
 uint32_t *intnewVT3PTr, *intnewVT3HWPTr, *intnewVT3HHPTr;
 
-// VT3 Rev C: the HUD camera (HyCamera) sets its field of view from the viewport height in
-// pixels, so the HUD keeps its pixel size and shrinks at high resolutions. Narrow its field
-// of view so the HUD covers the screen as it does at the native height of the mode.
+// VT3: the HUD camera (HyCamera) sets its field of view from the viewport height in pixels,
+// so the HUD keeps its pixel size and shrinks at high resolutions. Narrow its field of view
+// so the HUD covers the screen as it does at the native height of the mode.
 static float vt3HudScale = 1.0f;
+static uint32_t vt3SetPerspective; // the game's HyCamera setPerspective, per revision
 static void vt3HudSetPerspective(void *camera, float fovy, float aspect, float zNear, float zFar)
 {
-    void (*setPerspective)(void *, float, float, float, float) = (void *)0x08268498;
+    void (*setPerspective)(void *, float, float, float, float) = (void *)vt3SetPerspective;
     fovy = 2.0f * atanf(tanf(fovy * 0.5f) / vt3HudScale);
     setPerspective(camera, fovy, aspect, zNear, zFar);
 }
@@ -3556,30 +3557,26 @@ int initResolutionPatches()
         }
         break;
         case VIRTUA_FIGHTER_5_FINAL_SHOWDOWN_SBUV_REVA:
-        {
-            if ((gWidth == 640 && gHeight == 480) || (gWidth == 1280 && gHeight == 768))
-                break;
-            patchMemoryFromString(0x08054b5e, "01");         // Enable Anti Alias
-            patchMemoryFromString(0x08055980, "b80a000000"); // Skips resolution set by the Dip Switches.
-            vf5FSwidth = (gHeight * 5) / 3;
-            setVariable(0x088b2bd8, vf5FSwidth);
-            setVariable(0x088b2bdc, gHeight);
-            setVariable(0x088b2bec, gWidth);
-            setVariable(0x088b2bf0, gHeight);
-        }
-        break;
         case VIRTUA_FIGHTER_5_FINAL_SHOWDOWN_SBXX_REVB:
         {
             if ((gWidth == 640 && gHeight == 480) || (gWidth == 1280 && gHeight == 768))
                 break;
-            patchMemoryFromString(0x080548c4, "01"); // Enable Anti Alias
+            // Rev A and Rev B are the same code at different addresses: the anti-aliasing switch,
+            // the Dip Switch read of the display mode, and the mode table ({w, h, wide, x, y, vw, vh}).
+            const bool revA = gId == VIRTUA_FIGHTER_5_FINAL_SHOWDOWN_SBUV_REVA;
+            const uint32_t antiAlias = revA ? 0x08054b5e : 0x080548c4;
+            const uint32_t dipRead = revA ? 0x08055980 : 0x080556e6;
+            const uint32_t modeTable = revA ? 0x088b2ac0 : 0x088d2a60;
+            const uint32_t wideMode = modeTable + 10 * 28; // 1360x768
+
+            patchMemoryFromString(antiAlias, "01"); // Enable Anti Alias
             if (gWidth * 3 <= gHeight * 4)
             {
-                // 4:3: use the game's own 1024x768 mode (entry 3 of the mode table at 0x088d2a60)
-                // unchanged. Its HUD draws the life bars and timer digits in pixels, so any other
-                // size breaks them; anti-aliasing renders the 3D at twice the size and
-                // blitStretch scales the frame to the window.
-                patchMemoryFromString(0x080556e6, "b803000000"); // Mode 3 in place of the Dip Switches.
+                // 4:3: use the game's own 1024x768 mode (entry 3 of the mode table) unchanged. Its
+                // HUD draws the life bars and timer digits in pixels, so any other size breaks
+                // them; anti-aliasing renders the 3D at twice the size and blitStretch scales the
+                // frame to the window.
+                patchMemoryFromString(dipRead, "b803000000"); // Mode 3 in place of the Dip Switches.
                 vf5FSwidth = 1024;
                 vf5FSheight = 768;
                 break;
@@ -3588,12 +3585,12 @@ int initResolutionPatches()
             // so larger screens run the game at most 2048 wide and blitStretch scales it up.
             vf5FSoutW = gWidth > 2048 ? 2048 : gWidth;
             int outH = gHeight * vf5FSoutW / gWidth;
-            patchMemoryFromString(0x080556e6, "b80a000000"); // Skips resolution set by the Dip Switches.
+            patchMemoryFromString(dipRead, "b80a000000"); // Skips resolution set by the Dip Switches.
             vf5FSwidth = (outH * 5) / 3;
-            setVariable(0x088d2b78, vf5FSwidth);
-            setVariable(0x088d2b7c, outH);
-            setVariable(0x088d2b8c, vf5FSoutW);
-            setVariable(0x088d2b90, outH);
+            setVariable(wideMode, vf5FSwidth);
+            setVariable(wideMode + 4, outH);
+            setVariable(wideMode + 20, vf5FSoutW);
+            setVariable(wideMode + 24, outH);
         }
         break;
         case VIRTUA_FIGHTER_5_FINAL_SHOWDOWN_SBXX_REVB_6000:
@@ -3703,65 +3700,30 @@ int initResolutionPatches()
         }
         break;
         case VIRTUA_TENNIS_3_SBKX_REVA:
-        {
-            if (gWidth <= 1360 && gHeight <= 768)
-                break;
-            patchMemoryFromString(0x081759e3, "9090");
-            setVariable(0x081759eb, gWidth);
-            setVariable(0x081759f5, gHeight);
-
-            // setPerspective
-            newVT3 = gWidth / 1360.0;
-            uint32_t *intnewVT3PTr = (uint32_t *)&newVT3;
-
-            setVariable(0x082682e6, (size_t)intnewVT3PTr);
-
-            // vecToScr_check
-            newVT3HW = (gWidth / 1360.0) * 320.0;
-            newVT3HH = (gHeight / 768.0) * 240.0;
-            uint32_t *intnewVT3HWPTr = (uint32_t *)&newVT3HW;
-            uint32_t *intnewVT3HHPTr = (uint32_t *)&newVT3HH;
-            uint32_t addressvt31 = 0x0817a58e;
-            setVariable(addressvt31, (size_t)intnewVT3HWPTr);
-            setVariable(addressvt31 + 0x18, (size_t)intnewVT3HHPTr);
-        }
-        break;
         case VIRTUA_TENNIS_3_SBKX_REVB:
-        {
-            if (gWidth <= 1360 && gHeight <= 768)
-                break;
-            patchMemoryFromString(0x08175ad7, "9090");
-            setVariable(0x08175adf, gWidth);
-            setVariable(0x08175ae9, gHeight);
-
-            // setPerspective
-            newVT3 = gWidth / 1360.0;
-            uint32_t *intnewVT3PTr = (uint32_t *)&newVT3;
-
-            setVariable(0x082684d2, (size_t)intnewVT3PTr);
-
-            // vecToScr_check
-            newVT3HW = (gWidth / 1360.0) * 320.0;
-            newVT3HH = (gHeight / 768.0) * 240.0;
-            uint32_t *intnewVT3HWPTr = (uint32_t *)&newVT3HW;
-            uint32_t *intnewVT3HHPTr = (uint32_t *)&newVT3HH;
-            uint32_t addressvt31 = 0x0817a77a;
-            setVariable(addressvt31, (size_t)intnewVT3HWPTr);
-            setVariable(addressvt31 + 0x18, (size_t)intnewVT3HHPTr);
-        }
-        break;
         case VIRTUA_TENNIS_3_SBKX_REVC:
         {
             // 640x480 is a native mode (resolution DIPs 000).
             if (gWidth == 640 && gHeight == 480)
                 break;
+            // Rev A, B and C are the same code at different addresses: the widescreen mode
+            // setup, the call that sets up the HUD camera, and the setPerspective it calls.
+            const uint32_t resolution = gId == VIRTUA_TENNIS_3_SBKX_REVA   ? 0x081759e3
+                                        : gId == VIRTUA_TENNIS_3_SBKX_REVB ? 0x08175ad7
+                                                                           : 0x08175b03;
+            const uint32_t hudCamera = gId == VIRTUA_TENNIS_3_SBKX_REVA   ? 0x081ccd11
+                                       : gId == VIRTUA_TENNIS_3_SBKX_REVB ? 0x081ccefd
+                                                                          : 0x081ccf29;
+            vt3SetPerspective = gId == VIRTUA_TENNIS_3_SBKX_REVA   ? 0x08268280
+                                : gId == VIRTUA_TENNIS_3_SBKX_REVB ? 0x0826846c
+                                                                   : 0x08268498;
             // Force the resolution in place of the DIP-switch widescreen mode. The camera
             // projection (setPerspective's 1.0) and vecToScr's 320x240 half screen are
             // the same in both native modes, so they are left alone: scaling them by
             // gWidth / 1360 zoomed the camera in or out with the resolution.
-            patchMemoryFromString(0x08175b03, "9090");
-            setVariable(0x08175b0b, gWidth);
-            setVariable(0x08175b15, gHeight);
+            patchMemoryFromString(resolution, "9090");
+            setVariable(resolution + 8, gWidth);
+            setVariable(resolution + 18, gHeight);
 
             // Fit the HUD layout to the screen: it spans 1360x768 in the widescreen mode
             // and 960x720 in the 4:3 mode (measured against the native 640x480 HUD).
@@ -3770,7 +3732,7 @@ int initResolutionPatches()
                 vt3HudScale = fminf(gWidth / 1360.0f, gHeight / 768.0f);
             else
                 vt3HudScale = fminf(gWidth / 960.0f, gHeight / 720.0f);
-            replaceCallAtAddress(0x081ccf29, vt3HudSetPerspective);
+            replaceCallAtAddress(hudCamera, vt3HudSetPerspective);
         }
         break;
         default:

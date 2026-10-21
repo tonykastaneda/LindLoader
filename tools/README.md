@@ -45,6 +45,12 @@ These use ViGEmBus and the Python `vgamepad` package.
 
 Start the daemon before the game: the loader assigns controllers when it starts. SDL numbers controllers in the order it finds them, so a real pad usually comes first.
 
+## Game tests
+
+**`gametest.sh <name> <game dir> <width> <height> <boot seconds> "<caption>"`** boots a game fullscreen at that resolution and coins in with virtual pad 1. It then presses Start and A through the menus into a match, and screenshots and texts the screen. Its settings live in `logs\T\cfg\<name>\`, apart from LindLoader's `config\`, and its controls add RS as a coin button. The game reads the pads while unfocused, so the test doesn't depend on window focus. It starts `vpadd.py` if it isn't running. A game's first boot sets up its save data for a minute or two and ignores input, so give that one a longer boot time.
+
+A fullscreen game can show an older frame in desktop screenshots: Windows only refreshes them when something else on screen changes.
+
 ## Screenshots
 
 - **`snap.ps1 -Out <png>`** captures the whole desktop. It writes `<png>` scaled to 1280 wide and `<name>.full.png` at full size. With `-Send "caption"` it also texts the image through the Mac's `imsg` CLI to the number in the `LL_IMSG_TO` environment variable.
