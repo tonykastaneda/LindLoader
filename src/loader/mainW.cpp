@@ -22,6 +22,7 @@
 #include "elfLoader/networkBridge.hpp"
 #include "elfLoader/mathBridge.hpp"
 #include "elfLoader/intelBridge.hpp"
+#include "elfLoader/libcExtraBridge.hpp"
 #include "elfLoader/symbolResolver.hpp"
 #include "elfLoader/pthread/pthreadEmu.hpp"
 #include "loader/config/config.h"
@@ -75,6 +76,7 @@ void initBridges()
     RegexBridge::initBridges();
     MathBridge::initBridges();
     IntelBridge::initBridges();
+    LibcExtraBridge::initBridges(); // after MathBridge: replaces its div
 }
 
 /* On a crash, print where it happened and the likely return addresses

@@ -19,6 +19,17 @@ struct linux_dirent
     char d_name[260];
 };
 
+/* glibc i386 struct dirent64: u64 d_ino, s64 d_off, u16 d_reclen, u8 d_type,
+   char d_name[256]. */
+struct linux_dirent64
+{
+    unsigned long long d_ino;
+    long long d_off;
+    unsigned short d_reclen;
+    unsigned char d_type;
+    char d_name[256];
+} __attribute__((packed));
+
 struct DIR_Impl
 {
     HANDLE hFind;
@@ -27,6 +38,7 @@ struct DIR_Impl
     bool first_read;
     bool finished;
     std::string path;
+    std::string search; // FindFirstFile pattern, for rewinddir
 };
 
 #endif
@@ -188,6 +200,9 @@ extern "C"
     void *bridgeOpendir(const char *name);
     struct linux_dirent *bridgeReaddir(void *dirp);
     int bridgeClosedir(void *dirp);
+    void bridgeRewinddir(void *dirp);
+    int bridgeReaddir64R(void *dirp, struct linux_dirent64 *entry, struct linux_dirent64 **result);
+    int bridgeRmdir(const char *pathname);
 
     int bridgeUnlink(const char *pathname);
     int bridgeRename(const char *oldpath, const char *newpath);

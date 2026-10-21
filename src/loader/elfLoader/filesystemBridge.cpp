@@ -88,6 +88,10 @@ namespace FileSystemBridge
         MAP("opendir", bridgeOpendir);
         MAP("readdir", bridgeReaddir);
         MAP("closedir", bridgeClosedir);
+        MAP("rewinddir", bridgeRewinddir);
+        MAP("readdir64_r", bridgeReaddir64R);
+        MAP("rmdir", bridgeRmdir);
+        MAP("creat64", bridgeCreat);
         MAP("clearerr", clearerr);
 
         MAP("unlink", bridgeUnlink);
@@ -335,6 +339,7 @@ extern "C"
 
         DIR_Impl *dir = new DIR_Impl();
         dir->path = name; // logging uses original name
+        dir->search = searchPath;
         dir->hFind = FindFirstFileA(searchPath.c_str(), &dir->findData);
 
         if (dir->hFind == INVALID_HANDLE_VALUE)
@@ -387,6 +392,42 @@ extern "C"
         }
 
         return &dir->ent;
+    }
+
+    void bridgeRewinddir(void *dirp)
+    {
+        DIR_Impl *dir = (DIR_Impl *)dirp;
+        if (!dir)
+            return;
+        if (dir->hFind != INVALID_HANDLE_VALUE)
+            FindClose(dir->hFind);
+        dir->hFind = FindFirstFileA(dir->search.c_str(), &dir->findData);
+        dir->first_read = true;
+        dir->finished = dir->hFind == INVALID_HANDLE_VALUE;
+    }
+
+    int bridgeReaddir64R(void *dirp, struct linux_dirent64 *entry, struct linux_dirent64 **result)
+    {
+        struct linux_dirent *e = bridgeReaddir(dirp);
+        if (!e)
+        {
+            *result = NULL;
+            return 0;
+        }
+        memset(entry, 0, sizeof(*entry));
+        entry->d_ino = 1;
+        entry->d_type = e->d_type;
+        strncpy(entry->d_name, e->d_name, sizeof(entry->d_name) - 1);
+        entry->d_reclen = sizeof(*entry);
+        *result = entry;
+        return 0;
+    }
+
+    int bridgeRmdir(const char *pathname)
+    {
+        char winPath[MAX_PATH];
+        ConvertPath(winPath, pathname, MAX_PATH);
+        return _rmdir(winPath);
     }
 
     int bridgeClosedir(void *dirp)
