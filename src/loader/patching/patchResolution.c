@@ -3725,30 +3725,16 @@ int initResolutionPatches()
         break;
         case VIRTUA_TENNIS_3_SBKX_REVC:
         {
-            // if (gWidth <= 1360 && gHeight <= 768)
-            //     break;
-            // 640x480 is a native mode (resolution DIPs 000): the camera scale below
-            // (gWidth / 1360) would shrink its projection to 0.47.
+            // 640x480 is a native mode (resolution DIPs 000).
             if (gWidth == 640 && gHeight == 480)
                 break;
+            // Force the resolution in place of the DIP-switch widescreen mode. The camera
+            // projection (setPerspective's 1.0) and vecToScr's 320x240 half screen are
+            // the same in both native modes, so they are left alone: scaling them by
+            // gWidth / 1360 zoomed the camera in or out with the resolution.
             patchMemoryFromString(0x08175b03, "9090");
             setVariable(0x08175b0b, gWidth);
             setVariable(0x08175b15, gHeight);
-
-            // setPerspective
-            newVT3 = gWidth / 1360.0;
-            uint32_t *intnewVT3PTr = (uint32_t *)&newVT3;
-
-            setVariable(0x082684fe, (size_t)intnewVT3PTr);
-
-            // vecToScr_check
-            newVT3HW = (gWidth / 1360.0) * 320.0;
-            newVT3HH = (gHeight / 768.0) * 240.0;
-            uint32_t *intnewVT3HWPTr = (uint32_t *)&newVT3HW;
-            uint32_t *intnewVT3HHPTr = (uint32_t *)&newVT3HH;
-            uint32_t addressvt31 = 0x0817a7a6;
-            setVariable(addressvt31, (size_t)intnewVT3HWPTr);
-            setVariable(addressvt31 + 0x18, (size_t)intnewVT3HHPTr);
         }
         break;
         default:
