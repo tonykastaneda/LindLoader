@@ -22,13 +22,14 @@ qt_add_executable(LindLoader WIN32
     main.cpp
     MainWindow.cpp MainWindow.h
     GameLibrary.cpp GameLibrary.h
+    GamePropertiesDialog.cpp GamePropertiesDialog.h
     IniFile.cpp IniFile.h
     resources.qrc
 )
 
 target_link_libraries(LindLoader PRIVATE Qt6::Widgets Qt6::Concurrent Qt6::Svg)
 qt_import_plugins(LindLoader
-    INCLUDE Qt6::QSvgPlugin
+    INCLUDE Qt6::QSvgPlugin Qt6::QSvgIconPlugin
     EXCLUDE_BY_TYPE imageformats platforminputcontexts
 )
 if(MINGW)

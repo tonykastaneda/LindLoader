@@ -3,16 +3,14 @@
 #include <QMainWindow>
 
 #include "GameLibrary.h"
-#include "IniFile.h"
 
-class QCheckBox;
-class QComboBox;
+class QAction;
 class QLabel;
-class QListWidget;
-class QPushButton;
 class QStackedWidget;
 class QTimer;
+class QTreeWidget;
 
+// Laid out like DuckStation and PCSX2: menu bar, toolbar, game list table, status bar.
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -20,42 +18,35 @@ public:
     explicit MainWindow(const QString &appDir, QWidget *parent = nullptr);
 
 private:
-    QWidget *buildLibraryPanel();
-    QWidget *buildDetailPanel();
+    void buildActions();
+    void buildMenus();
+    void buildToolBar();
     QWidget *buildEmptyState();
-    QWidget *settingsRow(const QString &label, QWidget *field, const QString &hint = QString());
 
     void addFolder();
     void refreshList();
-    void showGame(int row);
-    void loadSettings();
-    void saveSetting(const QString &key, const QString &value);
+    void updateActions();
+    void showProperties();
+    void openGameFolder();
+    void showContextMenu(const QPoint &pos);
     void play();
     void watchRunning();
 
     const Game *currentGame() const;
 
     GameLibrary m_library;
-    IniFile m_ini;
-    bool m_loading = false;
-
-    QListWidget *m_list = nullptr;
-    QLabel *m_count = nullptr;
     QStackedWidget *m_stack = nullptr;
+    QTreeWidget *m_list = nullptr;
+    QLabel *m_statusGames = nullptr;
 
-    QLabel *m_title = nullptr;
-    QLabel *m_meta = nullptr;
-    QLabel *m_badge = nullptr;
-    QLabel *m_path = nullptr;
-    QPushButton *m_play = nullptr;
-    QLabel *m_status = nullptr;
-
-    QComboBox *m_resolution = nullptr;
-    QComboBox *m_window = nullptr;
-    QComboBox *m_vsync = nullptr;
-    QCheckBox *m_aspect = nullptr;
-    QCheckBox *m_fps = nullptr;
+    QAction *m_start = nullptr;
+    QAction *m_addFolder = nullptr;
+    QAction *m_rescan = nullptr;
+    QAction *m_properties = nullptr;
+    QAction *m_openFolder = nullptr;
+    QAction *m_exit = nullptr;
 
     void *m_process = nullptr; // HANDLE of the running loader
+    QString m_runningTitle;
     QTimer *m_runTimer = nullptr;
 };
