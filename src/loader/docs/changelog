@@ -1,0 +1,330 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## [3.0.12]
+### Fixed
+    - Hummer test mode and Extreme would not work in windows due to stack alignment issues.
+    - Fixed a cast to make the building work in newer Mingw toolchains (MSYS2).
+
+## [3.0.11]
+### Added
+    - Hummer, Hummer SDLX, Hummer Extreme and Hummer Extreme MDX support for Windows.
+    - Rambo and Rambo Chinesse versions support for Windows. 
+    - Windows version statically compiled (SDL3, SDL3_ttf and libwinpthreads libraries not needed).
+    - Option to swap the steering wheel and Gas for Harley for JVS Passthrough.
+    - An option to make Primeval Hunt use a special opengl.dll to fix the graphic glitches.
+    - Outrun fixed shadow under the car with Mesa/Intel GPUs.
+    - Outrun fixed dynamic shadow for other cars with AMD/Mesa/Intel GPUs.
+### Fixed
+    - Bug in glxBridge that prevented the pbuffer from work in linux.
+
+## [3.0.10]
+### Added
+### Fixed
+    - Missing glReadPixels in glHooks.
+    - Fixed controls-Guide.
+
+## [3.0.9]
+### Added
+### Fixed
+    - Fixed a bug in libsegaapi that I messed up when cleaning up some code.
+
+## [3.0.8]
+### Added
+    - Fps overlay counter (F12 toggle). Option in config file for position and auto enabled.
+    - Primeval support for windows.
+    - HOD-ex support for windows.
+    - Insert / Remove card overlay message.
+    - Auto center controller support for shooting games. (Read Controls-Guide.md for more info).
+    - Outrun lens flare 100% fix at any resolution.
+    - Cleaned up some hooks to avoid redundancy calls.
+    - FPS limiter option moved to the Display section (make sure you change the config file accordingly).
+    - Primeval Hunt auto search for required sound libraries (Linux and Windows).
+    - Preliminary/Maybe fix for HOD4 / Virtua Fighter audio issues.
+    - Outrun support for upscaled textures and fonts.
+### Fixed
+    - Outrun network exit fix (now if stuck in the network search screen, it will exit normally).
+    - Fixed a bug in credit section when FreePlay was set for House of the Dead Games.
+
+## [3.0.7]
+### Added
+    - Added a more detailed config file loading instructions to the Linux and Windows guides.
+    - Added instruction on how the dependencies work now in the Linux version.
+### Fixed
+    - Fixed a bug when some games needed CG Shaders and libCg2.so was not found. The path was being passed wrong.
+    - Fixed a bug in the path of the config files for windows.
+
+## [3.0.6]
+### Added
+    - Added a new logic for the shake and changed the default values. The new logic will account for the game's resolution and I also added a new setting to set a percentage of the screen where the movement should be detected (defaults to 15%). Recreate controls.ini to see the new settings.
+    - Changed the default behavior of -c, -o and -d to not load from the game folder by default if no path is specified. Now, if you pass just the filename, it will search in the current directory, then will fallback to the game folder, if not found there, it will use the default config.
+    - Added -L / --library-path option to specify the path for the libraries for linux, if path not found, will fallback to ll-deps in the loader folder.
+### Fixed
+    - Fixed Border for Ghost Squad Evolution for Sinden Light guns.
+    - Fixed a bug where the loader would exit if the path to the elf contain spaces.
+    - Fixed a bug in the Reload logic for shooting games.
+    - Fixed a bug in the load of custom controller DB.
+
+## [3.0.5]
+### Added
+    - Option to always disable Crosshairs in Ghost Squad Evolution.
+    - Added another texture filter for custom Crosshairs in Ghost Squad Evolution to prevent black background.
+    - Added some warning messages.
+    - Approved PR from JC to support float vvalues for Sinden light guns borders.
+### Fixed
+    - Fixed Crosshair disappearing in Ghost Squad Evolution after continue.
+    - Fixed a "bug" in basename functions that would crash 2Spicy in Windows.
+    - Fixed some redundant function calls in ElfLoader.
+
+## [3.0.4]
+### Added
+### Fixed
+    - Fixed Version number when running --version command.
+    - Fixed a few bugs in wide char functions that might prevent 2Spicy to start in some cases.
+    - Fixed Outrun Glare Effect setting being in the wrong category and not being applied.
+    - Removed built in gamecontrollerdb, the SDL3 default database will be used instead.
+    - Fixed a bug in sdlInput where if a mapping was assigned to a combo, it wouldn't work as a single mapping.
+    - Fixed a bug in ID5, where attract mode would crash when starting the demo race.
+    - Fixed a bug in linuxoader (linux) where if it was called without parameters and the folder didn't have any known game, it would crash.
+    - Fixed a bug in GSEvo where the custom crosshairs would have a black background.
+
+## [3.0.3]
+### Added
+    - A config option to always enable crosshairs in Ghost Squad Evolution.
+    - Removed GPU Vendor setting from ini as it is confising for some people. Autodetect works fine.
+### Fixed
+    - A missing source file.
+
+## [3.0.2]
+### Added
+    - Removed MSYS2 dependency as it was causing crashes (This potentially fixed the silent crash on start for some users).
+### Fixed
+    - A missing function in Outrun 2 that might cause the game to crash on loading.
+
+## [3.0.1]
+### Added
+### Fixed
+    - A bug in ID5 where it would crash when you finish the race.
+    - Fixed links in Discord Bot.
+
+## [3.0.0]
+### Added
+    - Added an ELF loader to load games in Windows.
+    - Added linux shared libraries loading support.
+    - Merged new Windows ELF loader with Lindbergh loader.
+    - Outrun 2 support for Windows version.
+    - After Burner Climax support for Windows version.
+    - HOD4 and HOD4-SP support for Windows version.
+    - Too Spicy support for Windows version.
+    - ID4 and ID5 support for Windows version.
+    - Let's go Jungle and Let's go Jungle Special support for Windows version.
+    - Ghost Squad Evolution support for Windows version.
+    - AMD and Intel Graphics Cards support for all the games (GSEvo does not work with Intel)
+    - Added pBuffer emulation.
+### Fixed
+    - A bug in ID4/ID5 where it would try to load the card file over an over if the file didn't exist.
+
+## [2.1.5]
+### Added
+    - Account for the extra textures created by the Crosshairs when patching.
+### Fixed
+    - Preliminary FFB was not included in the previous release.
+    - Maybe a render issue with LGJ in certain cases.
+
+## [2.1.4]
+### Added
+    - Zink support in appimage (fixes Zink in the Steam Deck).
+    - Change the Mesa version on the fly to fix ID games rendering issues in the appimage.
+    - Show / Hide crosshairs in parts of games like HOD4, HOD-SP and RAMBO_SBQL should be hidden.
+    - Fixed ghost window when in X11, now the windows will open always with black background.
+    - WiiRemote support for lightgun games. (Needs Testing)
+    - Crosshairs when using light guns or WiiRemote. (Needs Testing)
+    - Preliminary Forcefeedback support for game controllers. (No Steering wheels yet)
+### Fixed
+    - Bug in config.c where ENABLE_NETWORK_PATCHES wasn't working.
+    - Weird issue with LGJ games where the 2D is gone when the window changes size.
+    - LGJ Special wasnt scaling while in full screen mode.
+    - A typo in the command to load custom gamecontrollerdb (--controllerdb) to match the guide.
+    - Disable SDL input when EvDev is selected.
+    - A fix to make the Maximize window button show.
+
+## [2.1.3]
+### Added
+### Fixed
+    - Fixed controls in Primeval Hunt. (dkeruza-neo)
+    
+## [2.1.2]
+### Added
+    - A few more needed libs to the AppImage.
+    - Changed the order SDL initialization.
+### Fixed
+    - Bug in AxA games that would not start.
+    - Bug in AxA games that if started in a resolution higher than the games pre-set res, charachters would render too big.
+    - Fixed the Kisak repo that was deprecated for the updated version of mesa. 
+    - A bug in resolution.c where the screen resolution was being retrieved wrongly (should fix LGJ).
+
+## [2.1.1]
+### Added
+    - RAMBO_SBQL DVP-0078 support.
+    - ID5 DVP-0070C support.
+    - Separated the lib packing from build-deps.sh for the AppImage workload.
+### Fixed
+    - Controller GUID string to a normalized one that is compatible with gamecontrollerdb.txt
+    - Prevent to save controls.ini if there was no file to begin with.
+    - Removed the Player 2 default mappings for Shooting games.
+    - A bug that would say "Could not initialize SDL_GameController".
+
+## [2.1.0]
+### Added
+    - Switched to SDL3
+    - Refactored config.c to make it more readable.
+    - Cleaned the code, fixed all the variables, functions and file names to use the same naming convention.
+    - An option to set a percentage to reduce the travel in ID games steering wheel.
+    - An option to change the language in ID5 EXP (DVP-0084 and DVP-0084A) to Chinese.
+    - An option to change the way the Guns are shown in RAMBO_SBQL.
+    - New ID games card guide in pdf format inside docs folder (thanks Murray).
+    - New controls guide in pdf format inside docs folder.
+    - Change the Outrun Testmode font to a built in font that scales with the resolution set.
+    - Replaced stb_image with SDL_image.
+    - An option in lindberg elf to specify a comunity built game controller database.
+    - An option in lindberg elf to generate a default controls.ini.
+    - An option to in lindberg elf generate a default lindbergh.ini file.
+    - config file format changed to ini (TOML format).
+    - SDL controls configuration using logical names.
+    - SDL input remade with separate configuration file.
+    - Option to make Primeval Hunt test mode load as a single screen.
+    - A few more libraries to AppImage.
+    - Cleaned all the inludes.
+    - Removed X11 completely and only SDL is used to create windows and handle controls.
+    - Blitting to support stretching with fullscreen on the fly. (F11 to switch from / to fullscreen).
+    - Virtual Card file support for ID4 and ID5 (read the documentation).
+    - Moved all the network related code to a new file.
+    - Moved all the shader caching to a new file.
+    - AxA games added.
+    - Touch screen support for MJ4 and AxA games.
+    - Cleaned the shader patches files.
+### Fixed
+
+## [2.0.14]
+### Added
+    - Bobby's birthday checking!
+    - FPS target to float.
+### Fixed
+    - a bug in config.c where MJ4_ENABLED_ALL_THE_TIME was using the wrong variable.
+
+## [2.0.13]
+### Added
+    - Clear window when the game is loading to prevent ghosting in SDL
+    - Prevent the created windows to resize/maximize in LGJ games and PH (Cause issues).
+    - Version in github now matches the version in the changelog.
+### Fixed
+    - Fixed a bug in Let's Go Jungle Special Resolution Patch.
+    - Cleaned unnecessary global variables in resolution.c
+    - Fixed a bug that prevented the loader to start when the current folder contained spaces and lindbergh.so was there.
+    
+## [2.0.12]
+### Added
+    - AppImage support.
+### Fixed
+    - 2Spicy error in the scaling code, again.
+
+## [2.0.11]
+### Added
+    - AppImage support.
+
+## [2.0.10]
+### Added
+    - Config option to specify a path for the library libCg.so required for some shader compilation.
+    - Improved folder patching for recompiled shaders (2Spicy, RAMBO_SBQL, Harly and HOD-EX).
+    - Cleaned a bit of lindbergh elf.
+
+## [2.0.9]
+    - lindbergh elf mostly redone to make the loader work as a stand alone mode (read guide.md).
+
+## [2.0.8]
+### Added
+    - Changed preprocessor for avoiding multiple inclusions to #pragma once and clean some includes.
+### Fixed
+    - Test mode in HOD4 SP now stretches.
+
+## [2.0.7]
+### Added
+    - Option -g | --gamepath to lindbergh to point to games in a different folder.
+    - lindbergh elf searches for lindbergh.so in common library folders ("/usr/lib/i386-linux-gnu", "/usr/lib32", etc).
+    - Improved Distro detection function to inform that the Distro is not based on Debian.
+
+## [2.0.6]
+### Fixed
+    - Reverted (Fixed LGJ, VT3 and ID4/ID5 JVS passthrough).
+    - Outrun 2 High Scores.
+
+## [2.0.5] 
+### Added 2025-03-21
+    - SEGA Race TV link support from/to any IP.
+    - R-tuned link support from/to an IP.
+    - Hummer (all versions) link support from/to any IP.
+### Fixed
+    - Fixed LGJ, VT3 and ID4/ID5 JVS passthrough.
+
+## [2.0.4] 
+### Added 2025-03-02
+    - Makefile, lindbergh.c and shader_patches.c changes to support Flatpak.
+    - "--zink" option in lindbergh elf to run the games using Zink.
+    - "--nvidia" option in lindbergh elf to force the secondary nVidia GPU in laptops.
+    - Click and drag in PH touchscreen.
+    - Hide custom crosshair cursor in PH when not needed.
+    - Custom mouse cursors working with X11, GLX and Glut.
+    - Custom mouse cursor in Primeval Hunt TouchScreen.
+    - TouchScreen emulation fro Primeval Hunt.
+    - Preliminary Card support for ID4 / ID5
+    - After Burner Climax Network patches to allow working on newer Distros (Still needs Root)
+    - Display a warning if the distro you are running is not based on Debian.
+    - Cleaned up most of the code changing Ifs to Switches and sorting Alphabetically.
+### Fixed
+    - Bug in LGJ / LGJSP where GPU was nVidia and MESA render was selected.
+    
+## [2.0.3] 2025-02-02
+### Added
+    - Display a warning when loading an Elf that is not clean.
+    - Added to the lib folder, common libraries that are usually missing.
+### Fixed
+    - Missing patch in HOD-EX.
+    - Alows to run a game that does not support Card reader if option enabled in conf file.
+
+## [2.0.2] 2025-01-27
+### Added
+    - Let's go Jungle resolution patch.
+    - 2 Spicy resolution patch.
+    - 2 Spicy Patch to allow any IP for Network play.
+    - HOD4 SP CPU Frequency fix.
+    - ID4 and ID5 patches for Network link to allowed any NIC name and any IP.
+    - Harley patch for network link to allowed any NIC name and any IP.
+    - InitialD 5 SBRY
+    - Lest go Jungle SP resolution patch.
+### Fixed
+    - Fixed a bug when a game uses GLUT and the conf was set to NO_SDL 1
+    - Fixed a bug in Let's go Jungle when GPU was nVidia and Mesa was set as shader patches.
+    - Exclude resolution patches when the resolution is the game's original resolution.
+    - Reload with Right mouse click for RAMBO_SBQL and 2Spicy with SDL.
+
+### [2.0.1] 2025-01-23
+### Added
+    - HOD4 Custom crosshair.
+    - HOD4 CPU frequency fix  (Configurable via config file).
+    - HOD4 New resolution patch that fixes Boss battle and scales from 1280x768 instead of the lower resolution.
+    - Built in Logos and fonts (no more nee to use Lucida/SEGA_KakuGothic-DB-Roman_12 and logo.tga).
+    - Outrun 2 Easy network config from the conf file (can set your IP address in the config file and the loader will set it in the eeprom for you).
+    - Card Emulation for VT3 and R-tuned.
+    - All the now games work inside an SDL window now,  unless it is disabled in the conf file.
+
+## [2.0] - 2024-12-24
+### Initial Release
+- First official public release.
+- Features of the loader:
+    - Dynamic shader modification allowing games to work on Intel, nVidia and AMD
+    - 5.1 Surround Sound Support
+    - Dynamic resolution patching allowing most games to scale properly in HD
+    - Original cabinet support with pass through of JVS and FFB
+    - Network play
+    - Both simple X11 and advanced evdev input system allowing for ready-to-play keyboard and mouse support or mapping of any controller
