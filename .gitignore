@@ -4,6 +4,17 @@ build-win32/
 compile_commands.json
 
 
-# Local game builds and test tools (game files are not redistributable)
+# Local game setups (game files are not redistributable)
 /games/
-/tools/
+
+# Test tool output
+/tools/logs/
+/tools/shots/
+/tools/__pycache__/
+/tools/*.exe
+/tools/*.png
+/tools/*.bmp
+/tools/*.log
+/tools/cmd.txt
+/tools/winlist.txt
+/tools/testenv.txt
