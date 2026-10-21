@@ -60,6 +60,17 @@ float angleABC;
 float newVT3, newVT3HW, newVT3HH;
 uint32_t *intnewVT3PTr, *intnewVT3HWPTr, *intnewVT3HHPTr;
 
+// VT3 Rev C: the HUD camera (HyCamera) sets its field of view from the viewport height in
+// pixels, so the HUD keeps its pixel size and shrinks at high resolutions. Narrow its field
+// of view so the HUD covers the screen as it does at the native height of the mode.
+static float vt3HudScale = 1.0f;
+static void vt3HudSetPerspective(void *camera, float fovy, float aspect, float zNear, float zFar)
+{
+    void (*setPerspective)(void *, float, float, float, float) = (void *)0x08268498;
+    fovy = 2.0f * atanf(tanf(fovy * 0.5f) / vt3HudScale);
+    setPerspective(camera, fovy, aspect, zNear, zFar);
+}
+
 // Outrun Lens flare fix globals
 float lensFlareNegHalfWBound;
 float lensFlareHalfWBound;
@@ -3735,6 +3746,11 @@ int initResolutionPatches()
             patchMemoryFromString(0x08175b03, "9090");
             setVariable(0x08175b0b, gWidth);
             setVariable(0x08175b15, gHeight);
+
+            // Native heights: 768 in the widescreen mode, 480 in the 4:3 mode
+            // (the game picks widescreen when width / height > 4 / 3).
+            vt3HudScale = gHeight / (gWidth * 3 > gHeight * 4 ? 768.0f : 480.0f);
+            replaceCallAtAddress(0x081ccf29, vt3HudSetPerspective);
         }
         break;
         default:
