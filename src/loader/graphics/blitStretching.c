@@ -88,6 +88,12 @@ void blitSetWidthandHeightSize()
         blitWidth = 1024;
         blitHeight = 768;
     }
+    else if (gId == VIRTUA_FIGHTER_5_FINAL_SHOWDOWN_SBXX_REVB && gWidth > 2048)
+    {
+        // Renders at most 2048 wide (see patchResolution.c).
+        blitWidth = 2048;
+        blitHeight = gHeight * 2048 / gWidth;
+    }
     else
     {
         blitWidth = gWidth;

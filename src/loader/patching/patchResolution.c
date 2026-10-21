@@ -32,7 +32,7 @@ int srtvW, srtvH;
 int phX, phY, phW, phH;
 int phX2, phY2, phW2, phH2;
 
-int vf5FSwidth, vf5FSheight;
+int vf5FSwidth, vf5FSheight, vf5FSoutW;
 
 void *glVertex3fPatchRetAddrABC[4];
 void *glVertex3fNoPatchRetAddrABC[4];
@@ -325,7 +325,7 @@ void bridgeglViewport(GLint x, GLint y, GLsizei width, GLsizei height)
             // Not in the 4:3 mode (vf5FSheight set): blitStretch scales that frame instead.
             if (!vf5FSheight && width == vf5FSwidth)
             {
-                width = gWidth;
+                width = vf5FSoutW ? vf5FSoutW : gWidth;
             }
         }
     }
@@ -3572,7 +3572,7 @@ int initResolutionPatches()
         {
             if ((gWidth == 640 && gHeight == 480) || (gWidth == 1280 && gHeight == 768))
                 break;
-            patchMemoryFromString(0x080548c4, "01");         // Enable Anti Alias
+            patchMemoryFromString(0x080548c4, "01"); // Enable Anti Alias
             if (gWidth * 3 <= gHeight * 4)
             {
                 // 4:3: use the game's own 1024x768 mode (entry 3 of the mode table at 0x088d2a60)
@@ -3584,12 +3584,16 @@ int initResolutionPatches()
                 vf5FSheight = 768;
                 break;
             }
+            // The game's 2D layer (menus, HUD) goes black when the game is more than 2048 wide,
+            // so larger screens run the game at most 2048 wide and blitStretch scales it up.
+            vf5FSoutW = gWidth > 2048 ? 2048 : gWidth;
+            int outH = gHeight * vf5FSoutW / gWidth;
             patchMemoryFromString(0x080556e6, "b80a000000"); // Skips resolution set by the Dip Switches.
-            vf5FSwidth = (gHeight * 5) / 3;
+            vf5FSwidth = (outH * 5) / 3;
             setVariable(0x088d2b78, vf5FSwidth);
-            setVariable(0x088d2b7c, gHeight);
-            setVariable(0x088d2b8c, gWidth);
-            setVariable(0x088d2b90, gHeight);
+            setVariable(0x088d2b7c, outH);
+            setVariable(0x088d2b8c, vf5FSoutW);
+            setVariable(0x088d2b90, outH);
         }
         break;
         case VIRTUA_FIGHTER_5_FINAL_SHOWDOWN_SBXX_REVB_6000:
