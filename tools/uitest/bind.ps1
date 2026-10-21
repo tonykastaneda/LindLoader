@@ -50,7 +50,7 @@ $buttons[0].GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern
 Start-Sleep -Milliseconds 800
 Add-Content "$T\cmd.txt" "1 tap X"; Start-Sleep -Seconds 2
 # Button 2 <- K (scancode 0x25), posted to the dialog; the binding button has grabbed the keyboard.
-$buttons[1].GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+$buttons[2].GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
 Start-Sleep -Milliseconds 800
 $h = [IntPtr]$dlg.Current.NativeWindowHandle
 [W]::PostMessage($h, 0x100, [IntPtr]0x4B, [IntPtr](1 -bor (0x25 -shl 16))) | Out-Null

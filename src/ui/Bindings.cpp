@@ -211,4 +211,16 @@ QString replace(const QString &value, const QString &binding, int playerIndex)
     (kind == Kind::Keyboard ? keyboard : kind == Kind::Mouse ? mouse : controllers) << added;
     return (keyboard + mouse + controllers).join(", ");
 }
+
+QString replaceController(const QString &value, const QStringList &controls, int playerIndex)
+{
+    // Only gamepad (GC) bindings: generic joysticks (JOY), such as arcade sticks SDL has no
+    // gamepad mapping for, keep theirs.
+    const QString gc = QStringLiteral("GC%1_").arg(playerIndex);
+    QStringList kept;
+    for (const QString &b : split(value))
+        if (!b.startsWith(gc))
+            kept << b;
+    return (kept + controls).join(", ");
+}
 } // namespace Bindings

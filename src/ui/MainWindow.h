@@ -26,7 +26,7 @@ private:
     void addFolder();
     void refreshList();
     void updateActions();
-    void showProperties();
+    void showProperties(int page);
     void openGameFolder();
     void showContextMenu(const QPoint &pos);
     void play();
@@ -43,6 +43,7 @@ private:
     QAction *m_addFolder = nullptr;
     QAction *m_rescan = nullptr;
     QAction *m_properties = nullptr;
+    QAction *m_controls = nullptr;
     QAction *m_openFolder = nullptr;
     QAction *m_exit = nullptr;
 

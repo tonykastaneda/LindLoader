@@ -16,7 +16,14 @@ class GamePropertiesDialog : public QDialog
 {
     Q_OBJECT
 public:
-    GamePropertiesDialog(const Game &game, GameLibrary &library, QWidget *parent = nullptr);
+    enum Page
+    {
+        Summary,
+        Graphics,
+        Emulation,
+        Controls,
+    };
+    GamePropertiesDialog(const Game &game, GameLibrary &library, Page page = Summary, QWidget *parent = nullptr);
 
 private:
     using Choices = QList<QPair<QString, QString>>; // label, linuxloader.ini value

@@ -3,16 +3,17 @@
 #include <QList>
 #include <QWidget>
 
+#include "ControlLayouts.h"
 #include "GameLibrary.h"
 #include "IniFile.h"
 
 class BindingButton;
 class QComboBox;
-struct BindingDef;
 
-// The Controls page of Game Properties, laid out like PCSX2's controller settings: the binding
-// groups around a picture of the controls, the system buttons underneath. Click a binding, then
-// press a key or controller button; right-click clears it. Writes the game's controls.ini.
+// The Controls page of Game Properties, laid out like PCSX2x6's controller settings: Bindings and
+// Settings views, the controller and Automap per player, System Buttons, and the game's layout
+// (Standard, Racing, Lightgun or Flight) with player 1 and player 2 side by side. Click a binding,
+// then press a key or controller button; right-click clears it. Writes the game's controls.ini.
 class ControllerSettingsWidget : public QWidget
 {
     Q_OBJECT
@@ -20,21 +21,23 @@ public:
     ControllerSettingsWidget(const Game &game, GameLibrary &library, QWidget *parent = nullptr);
 
 private:
-    QWidget *buildGroup(const QString &title, const QList<BindingDef> &binds);
-    QString keyFor(const BindingButton *button) const;
+    QWidget *buildBindingsPage();
+    QWidget *buildSettingsPage();
+    QWidget *buildGroup(const ControlLayouts::Group &group);
     void refresh();
     void refreshControllers();
+    void selectController(int player, int index);
+    void automap(int player);
     void bind(BindingButton *button, const QString &binding, const QString &guid);
     void clear(BindingButton *button);
-    void selectController(int index);
+    void copyFrom();
     void resetToDefaults();
     void save();
 
     Game m_game;
     GameLibrary &m_library;
     IniFile m_ini;
-    QString m_section; // the game's section in controls.ini: Digital, Driving, ...
-    int m_player = 1;
-    QComboBox *m_controllers = nullptr;
+    const ControlLayouts::Layout *m_layout; // null for games without a controls page (mahjong/quiz)
+    QList<QComboBox *> m_controllers;       // per player
     QList<BindingButton *> m_buttons;
 };

@@ -55,9 +55,10 @@ A fullscreen game can show an older frame in desktop screenshots: Windows only r
 
 `uitest\` drives LindLoader with Windows UI Automation, so no window needs keyboard focus, and uses the virtual pads (`vpadd.py` must be running). Run each script through a scheduled task in the user's session, like the others. Results go to a `.log` next to `$log`, and the bindings land in `config\<game>\controls.ini`. Delete that folder afterwards so the game starts from default controls.
 
-- `bind.ps1`: VF5, binds Button 1 with pad X and Button 2 with the K key.
+- `layout.ps1 -Title <game> -Name <name>`: opens a game's Controls page with the Controllers button and captures the window to `shots\layout-<name>.bmp`.
+- `bind.ps1`: VF5, binds player 1's Button 1 with pad X and Button 2 with the K key.
 - `analog.ps1`: Race TV, binds steering, Steer Left and gas with the stick and trigger, and checks that an analog pedal ignores a button.
-- `p2.ps1`: VF5, switches to Player 2 and binds Button 1 with pad 2.
+- `p2.ps1`: VF5, binds player 2's Button 1 with pad 2.
 
 ## Screenshots
 

@@ -9,7 +9,9 @@
 #include <QSettings>
 #include <QtConcurrent/QtConcurrentRun>
 
+#include "ControlLayouts.h"
 #include "DiskImage.h"
+#include "IniFile.h"
 
 static QSettings uiSettings(const QString &appDir)
 {
@@ -123,12 +125,16 @@ bool GameLibrary::ensureConfig(const Game &game, QString *error)
     } files[] = {{game.configPath(), "config", "linuxloader.ini"}, {game.controlsPath(), "controls", "controls.ini"}};
     for (const auto &f : files)
     {
-        if (!QFileInfo::exists(f.path) && !createDefaults(f.kind, game.configDir, f.name))
+        if (QFileInfo::exists(f.path))
+            continue;
+        if (!createDefaults(f.kind, game.configDir, f.name))
         {
             if (error)
                 *error = QStringLiteral("Could not create %1").arg(f.path);
             return false;
         }
+        if (f.kind == "controls")
+            applyStarterControls(game.type, f.path);
     }
     return true;
 }
@@ -276,4 +282,14 @@ void GameLibrary::extractImages(const QString &folder)
         QFile f(marker);
         f.open(QIODevice::WriteOnly);
     }
+}
+
+// Linux Loader's default controls only cover player 1's controller; fill in both players.
+void GameLibrary::applyStarterControls(const QString &type, const QString &path) const
+{
+    IniFile ini;
+    if (!ini.load(path))
+        return;
+    ControlLayouts::applyStarterBindings(ini, type);
+    ini.save();
 }

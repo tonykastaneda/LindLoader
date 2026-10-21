@@ -19,4 +19,7 @@ QStringList split(const QString &value);
 
 // Replaces the bindings of the same kind (keyboard, or the given player's controller) with binding.
 QString replace(const QString &value, const QString &binding, int playerIndex);
+
+// Replaces all of the given player's gamepad bindings with controls (none clears them).
+QString replaceController(const QString &value, const QStringList &controls, int playerIndex);
 } // namespace Bindings

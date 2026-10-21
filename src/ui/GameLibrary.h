@@ -47,6 +47,9 @@ public:
     // Writes the loader's default linuxloader.ini ("config") or controls.ini ("controls") to dir/name.
     bool createDefaults(const QString &kind, const QString &dir, const QString &name) const;
 
+    // Fills in the starter bindings (both players, keyboard and controllers) of a new controls.ini.
+    void applyStarterControls(const QString &type, const QString &path) const;
+
 signals:
     void scanned();
     void extracting(const QString &image, int percent);

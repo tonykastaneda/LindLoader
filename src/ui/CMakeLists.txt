@@ -26,6 +26,7 @@ qt_add_executable(LindLoader WIN32
     GameLibrary.cpp GameLibrary.h
     GamePropertiesDialog.cpp GamePropertiesDialog.h
     ControllerSettingsWidget.cpp ControllerSettingsWidget.h
+    ControlLayouts.cpp ControlLayouts.h
     Gamepads.cpp Gamepads.h
     Bindings.cpp Bindings.h
     DiskImage.cpp DiskImage.h

@@ -56,11 +56,11 @@ QWidget *page(QVBoxLayout **layout)
 }
 } // namespace
 
-GamePropertiesDialog::GamePropertiesDialog(const Game &game, GameLibrary &library, QWidget *parent)
+GamePropertiesDialog::GamePropertiesDialog(const Game &game, GameLibrary &library, Page page, QWidget *parent)
     : QDialog(parent), m_game(game), m_library(library)
 {
     setWindowTitle(game.title + " Properties");
-    resize(1000, 640);
+    resize(1100, 720);
 
     QString error;
     if (m_library.ensureConfig(m_game, &error))
@@ -84,7 +84,7 @@ GamePropertiesDialog::GamePropertiesDialog(const Game &game, GameLibrary &librar
         if (!categories->selectedItems().isEmpty())
             pages->setCurrentIndex(categories->row(categories->selectedItems().first()));
     });
-    categories->setCurrentRow(0);
+    categories->setCurrentRow(page);
 
     auto *body = new QHBoxLayout;
     body->addWidget(categories);

@@ -104,6 +104,7 @@ void MainWindow::buildActions()
     m_rescan->setShortcut(QKeySequence(Qt::Key_F5));
     m_properties = new QAction(QIcon(":/icons/settings.svg"), "&Properties...", this);
     m_properties->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Return));
+    m_controls = new QAction(QIcon(":/icons/gamepad.svg"), "&Controllers...", this);
     m_openFolder = new QAction(QIcon(":/icons/folder-open.svg"), "Open Game &Folder", this);
     m_exit = new QAction("E&xit", this);
 
@@ -113,7 +114,8 @@ void MainWindow::buildActions()
         statusBar()->showMessage("Scanning game folders...");
         m_library.rescan();
     });
-    connect(m_properties, &QAction::triggered, this, &MainWindow::showProperties);
+    connect(m_properties, &QAction::triggered, this, [this] { showProperties(GamePropertiesDialog::Summary); });
+    connect(m_controls, &QAction::triggered, this, [this] { showProperties(GamePropertiesDialog::Controls); });
     connect(m_openFolder, &QAction::triggered, this, &MainWindow::openGameFolder);
     connect(m_exit, &QAction::triggered, this, &QWidget::close);
 }
@@ -130,6 +132,7 @@ void MainWindow::buildMenus()
     game->addAction(m_start);
     game->addSeparator();
     game->addAction(m_properties);
+    game->addAction(m_controls);
     game->addAction(m_openFolder);
 
     QMenu *help = menuBar()->addMenu("&Help");
@@ -158,12 +161,14 @@ void MainWindow::buildToolBar()
     bar->addAction(m_rescan);
     bar->addSeparator();
     bar->addAction(m_properties);
+    bar->addAction(m_controls);
     bar->addAction(m_openFolder);
     // Shorter labels under the toolbar icons.
     m_start->setIconText("Start");
     m_addFolder->setIconText("Add Folder");
     m_rescan->setIconText("Rescan");
     m_properties->setIconText("Properties");
+    m_controls->setIconText("Controllers");
     m_openFolder->setIconText("Open Folder");
 }
 
@@ -242,15 +247,16 @@ void MainWindow::updateActions()
     const bool hasGame = currentGame() != nullptr;
     m_start->setEnabled(hasGame && !m_process);
     m_properties->setEnabled(hasGame);
+    m_controls->setEnabled(hasGame);
     m_openFolder->setEnabled(hasGame);
 }
 
-void MainWindow::showProperties()
+void MainWindow::showProperties(int page)
 {
     // A separate window like DuckStation's and PCSX2's: the game list stays usable.
     if (const Game *g = currentGame())
     {
-        auto *dialog = new GamePropertiesDialog(*g, m_library, this);
+        auto *dialog = new GamePropertiesDialog(*g, m_library, static_cast<GamePropertiesDialog::Page>(page), this);
         dialog->setAttribute(Qt::WA_DeleteOnClose);
         dialog->show();
     }
@@ -270,6 +276,7 @@ void MainWindow::showContextMenu(const QPoint &pos)
     menu.addAction(m_start);
     menu.addSeparator();
     menu.addAction(m_properties);
+    menu.addAction(m_controls);
     menu.addAction(m_openFolder);
     menu.exec(m_list->viewport()->mapToGlobal(pos));
 }
