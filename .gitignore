@@ -1,0 +1,17 @@
+# Local game setups (game files are not redistributable)
+/games/
+
+# Build output
+/build/
+
+# Test tool output
+/tools/logs/
+/tools/shots/
+/tools/__pycache__/
+/tools/*.exe
+/tools/*.png
+/tools/*.bmp
+/tools/*.log
+/tools/cmd.txt
+/tools/winlist.txt
+/tools/testenv.txt
