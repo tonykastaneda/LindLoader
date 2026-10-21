@@ -7,11 +7,10 @@ Build and test helpers for this fork on Windows. None of this is needed to play 
 ```
 LindLoader\                  the LindLoader repo
   loader\                    the linuxloader fork (git submodule)
-  launcher\play.c            per-game launcher (vt3.exe, racetv.exe, vf5fs.exe)
   tools\                     this folder
   build\                     build output (gitignored)
   games\<GAME>\              one self-contained folder per game (gitignored)
-    <game>.exe               launcher
+    <game>.vbs               launcher (vt3.vbs, racetv.vbs, vf5fs.vbs)
     loader\                  linuxloader.exe + ll-deps
     game\                    the game files (clean dumps only)
     linuxloader.ini          that game's settings
@@ -22,7 +21,7 @@ Games set up so far: `VT3` (Virtua Tennis 3 Rev C), `RACETV` (Sega Race TV), `VF
 
 ## Building
 
-`build.sh` builds the loader from `loader\` with MSYS2 MinGW32 into `build\loader\`. It then copies `linuxloader.exe` into every `games\*\loader\` and rebuilds each game's `<game>.exe` launcher. Run it from Git Bash.
+`build.sh` builds the loader from `loader\` with MSYS2 MinGW32 into `build\loader\`. It then copies `linuxloader.exe` into every `games\*\loader\`. Run it from Git Bash.
 
 ## Running a test
 

@@ -22,8 +22,7 @@ LindLoader does not include or download games, and it does not decrypt anything.
 
 Early. Working now:
 
-- The loader and the self-contained per-game folder layout.
-- The per-game launcher.
+- The loader and the self-contained per-game folder layout, with a `.vbs` launcher in each game folder.
 - Build and test tools.
 
 Next steps:
@@ -36,7 +35,6 @@ Next steps:
 
 ```
 loader/      linuxloader fork (git submodule)
-launcher/    per-game launcher (vt3.exe, racetv.exe, vf5fs.exe)
 tools/       build and test tools, see tools/README.md
 build/       build output (ignored)
 games/       local self-contained game folders (ignored)
@@ -46,7 +44,7 @@ Each game folder is self-contained and can be moved anywhere:
 
 ```
 games/VF5FS/
-  vf5fs.exe          launcher
+  vf5fs.vbs          launcher (double-click to play)
   loader/            linuxloader.exe + ll-deps
   game/              the game files
   linuxloader.ini    settings

@@ -1,6 +1,6 @@
 #!/bin/sh
 # Build the loader (loader/ submodule, MSYS2 MinGW32) and install it into the loader\ folder of
-# every game in games\ (each game folder is self-contained), then build each game's launcher.
+# every game in games\ (each game folder is self-contained).
 # Usage: tools/build.sh
 set -e
 L=/c/Users/tonyk/Documents/GitHub/LindLoader
@@ -15,10 +15,3 @@ for g in $L/games/*/; do
     echo "installed into $(basename "$g")"
 done
 
-# <game>.exe launcher for each game (see launcher/play.c).
-play() { # <game folder> <exe name> <game dir inside the folder>
-    MSYSTEM=MINGW32 C:/msys64/usr/bin/bash.exe -lc "gcc -O2 -s -mwindows '-DGAME_DIR=\"$3\"' -o '$L/games/$1/$2' '$L/launcher/play.c'"
-}
-play VT3 "vt3.exe" 'game\\\\disk0\\\\vt3_Lindbergh'
-play RACETV "racetv.exe" 'game\\\\disk0'
-play VF5FS "vf5fs.exe" 'game\\\\disk0'
