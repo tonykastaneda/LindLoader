@@ -5,6 +5,5 @@ compile_commands.json
 
 
 # Local game builds and test tools (game files are not redistributable)
-/loader/
 /games/
 /tools/
