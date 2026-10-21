@@ -28,6 +28,7 @@ qt_add_executable(LindLoader WIN32
     ControllerSettingsWidget.cpp ControllerSettingsWidget.h
     Gamepads.cpp Gamepads.h
     Bindings.cpp Bindings.h
+    DiskImage.cpp DiskImage.h
     IniFile.cpp IniFile.h
     resources.qrc
 )

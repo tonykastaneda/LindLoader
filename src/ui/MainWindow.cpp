@@ -77,6 +77,12 @@ MainWindow::MainWindow(const QString &appDir, QWidget *parent) : QMainWindow(par
     connect(m_list, &QTreeWidget::currentItemChanged, this, &MainWindow::updateActions);
     connect(m_list, &QTreeWidget::customContextMenuRequested, this, &MainWindow::showContextMenu);
     connect(&m_library, &GameLibrary::scanned, this, &MainWindow::refreshList);
+    connect(&m_library, &GameLibrary::extracting, this, [this](const QString &image, int percent) {
+        statusBar()->showMessage(QStringLiteral("Unpacking %1... %2%").arg(image).arg(percent));
+    });
+    connect(&m_library, &GameLibrary::extractFailed, this, [this](const QString &image, const QString &error) {
+        QMessageBox::warning(this, "LindLoader", QStringLiteral("Could not unpack %1: %2").arg(image, error));
+    });
 
     m_runTimer = new QTimer(this);
     m_runTimer->setInterval(1000);

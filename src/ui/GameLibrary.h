@@ -49,9 +49,12 @@ public:
 
 signals:
     void scanned();
+    void extracting(const QString &image, int percent);
+    void extractFailed(const QString &image, const QString &error);
 
 private:
     void saveFolders() const;
+    void extractImages(const QString &folder);
     QString findConfigDir(const QString &gameDir, const QString &libraryFolder, const QString &shortTitle) const;
 
     QString m_appDir;
