@@ -51,6 +51,14 @@ Start the daemon before the game: the loader assigns controllers when it starts.
 
 A fullscreen game can show an older frame in desktop screenshots: Windows only refreshes them when something else on screen changes.
 
+## LindLoader UI tests
+
+`uitest\` drives LindLoader with Windows UI Automation, so no window needs keyboard focus, and uses the virtual pads (`vpadd.py` must be running). Run each script through a scheduled task in the user's session, like the others. Results go to a `.log` next to `$log`, and the bindings land in `config\<game>\controls.ini`. Delete that folder afterwards so the game starts from default controls.
+
+- `bind.ps1`: VF5, binds Button 1 with pad X and Button 2 with the K key.
+- `analog.ps1`: Race TV, binds steering, Steer Left and gas with the stick and trigger, and checks that an analog pedal ignores a button.
+- `p2.ps1`: VF5, switches to Player 2 and binds Button 1 with pad 2.
+
 ## Screenshots
 
 - **`snap.ps1 -Out <png>`** captures the whole desktop. It writes `<png>` scaled to 1280 wide and `<name>.full.png` at full size. With `-Send "caption"` it also texts the image through the Mac's `imsg` CLI to the number in the `LL_IMSG_TO` environment variable.

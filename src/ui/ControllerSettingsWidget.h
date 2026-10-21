@@ -35,7 +35,6 @@ private:
     IniFile m_ini;
     QString m_section; // the game's section in controls.ini: Digital, Driving, ...
     int m_player = 1;
-    QComboBox *m_players = nullptr;
     QComboBox *m_controllers = nullptr;
     QList<BindingButton *> m_buttons;
 };

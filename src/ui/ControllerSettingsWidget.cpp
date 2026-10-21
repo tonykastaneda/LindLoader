@@ -249,15 +249,23 @@ ControllerSettingsWidget::ControllerSettingsWidget(const Game &game, GameLibrary
     auto *top = new QHBoxLayout;
     if (layout.players)
     {
-        m_players = new QComboBox;
-        m_players->addItems({"Player 1", "Player 2"});
-        connect(m_players, &QComboBox::currentIndexChanged, this, [this](int i) {
-            m_player = i + 1;
-            refresh();
-            refreshControllers();
-        });
-        top->addWidget(new QLabel("Player:"));
-        top->addWidget(m_players);
+        // One button per player, like PCSX2's controller ports.
+        for (int p = 1; p <= 2; ++p)
+        {
+            auto *button = new QPushButton(QIcon(":/icons/gamepad.svg"), QStringLiteral("Player %1").arg(p));
+            button->setCheckable(true);
+            button->setAutoExclusive(true);
+            button->setChecked(p == 1);
+            button->setMinimumHeight(30);
+            connect(button, &QPushButton::toggled, this, [this, p](bool on) {
+                if (!on)
+                    return;
+                m_player = p;
+                refresh();
+                refreshControllers();
+            });
+            top->addWidget(button);
+        }
         top->addSpacing(16);
     }
     m_controllers = new QComboBox;
