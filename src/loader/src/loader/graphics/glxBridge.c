@@ -1,3 +1,4 @@
+#include "glTrace.h"
 #include <glad/gl.h>
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -171,6 +172,7 @@ bool bridgeGlxQueryVersion(Display *dpy, int *major, int *minor)
 
 void *bridgeGlxGetProcAddress(const char *procName)
 {
+    glTrace("getproc %s", procName);
     void *proc = NULL;
     proc = GLHooks_GetProcAddress(procName);
     if (proc)

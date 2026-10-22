@@ -26,6 +26,16 @@
 #include "../graphics/glutBridge.h"
 #include "flowControl.h"
 #include "patchNetwork.h"
+#include "netLink.h"
+
+// Sega Race TV gives eth0 its cabinet's address here (register arguments). With loopback link play
+// that's this cabinet's own address, which the network emulation then reports as eth0's.
+static int __attribute__((regparm(2))) srtvSetNetworkAddrEth0(unsigned int addr, unsigned int mask)
+{
+    (void)mask;
+    netLinkSetLocalAddress(addr);
+    return 1;
+}
 
 extern uint32_t gId;
 char elfID[4];
@@ -2743,7 +2753,7 @@ int initPatch()
             detourFunction(0x084d44fc, amDipswSetLed);
             detourFunction(0x084d4485, amDipswGetData);
             patchMemoryFromString(0x0804edb2, "9090909090"); //__intel_new_proc_init_P
-            detourFunction(0x08178e6c, stubRetOne);          // _ZN7am_ctrl18SetNetworkAddrEth0Ejj.
+            detourFunction(0x08178e6c, srtvSetNetworkAddrEth0); // _ZN7am_ctrl18SetNetworkAddrEth0Ejj.
 
             detourFunction(0x0804e594, gl_XGetProcAddressARB);
             srtvElfShaderPatcher();

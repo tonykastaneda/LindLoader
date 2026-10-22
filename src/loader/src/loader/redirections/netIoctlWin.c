@@ -16,6 +16,7 @@
 #include <stdint.h>
 
 #include "netIoctlWin.h"
+#include "../patching/netLink.h"
 
 #define L_FIONREAD 0x541b
 #define L_FIONBIO 0x5421
@@ -80,7 +81,16 @@ static int listInterfaces(NetIf *out)
     out[n].mask = htonl(0xff000000);
     out[n].flags = L_IFF_UP | L_IFF_RUNNING | L_IFF_LOOPBACK;
     n++;
-    if (localIPv4())
+    if (netLinkActive())
+    {
+        /* Link play on this PC: eth0 is this cabinet's loopback address. */
+        out[n].name = "eth0";
+        out[n].addr = netLinkLocalAddress();
+        out[n].mask = htonl(0xffffff00);
+        out[n].flags = L_IFF_UP | L_IFF_RUNNING | L_IFF_BROADCAST | L_IFF_MULTICAST;
+        n++;
+    }
+    else if (localIPv4())
     {
         out[n].name = "eth0";
         out[n].addr = localIPv4();

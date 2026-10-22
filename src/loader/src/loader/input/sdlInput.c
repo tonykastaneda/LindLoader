@@ -23,6 +23,8 @@
 #include "../hardware/lindbergh/jvs.h"
 #include "../log/log.h"
 #include "../hardware/lindbergh/touchScreen.h"
+#include "../graphics/fpsLimiter.h"
+#include "mouseDevices.h"
 #include "../graphics/sdlCalls.h"
 #include "../mainShared.h"
 #include "../graphics/overlayMsgs.h"
@@ -54,14 +56,30 @@ static char gControlsFile[1024];        // Controls file that was loaded; GUIDs 
 
 // Direct lookup tables for high-performance event handling
 BindingPair gKeyBindings[SDL_SCANCODE_COUNT];
-BindingPair gMouseButtonBindings[MAX_MOUSE_BUTTONS];
-ControlBinding gMouseAxisBindings[2]; // 0=X, 1=Y
+// Mouse bindings per mouse slot: [0] is MOUSE_ (any mouse), [n] is MOUSEn_.
+BindingPair gMouseButtonBindings[MAX_MICE + 1][MAX_MOUSE_BUTTONS];
+ControlBinding gMouseAxisBindings[MAX_MICE + 1][2]; // 0=X, 1=Y
+
+// Raw mouse input (RAW_MOUSE_INPUT): the window is in relative mouse mode, so SDL reports which mouse
+// moved, and each mouse moves its own pointer. Without it every mouse moves the one system pointer,
+// which drives both MOUSE_ and MOUSE1_ bindings.
+static bool gRawMice = false;
+static char gMousePaths[MAX_MICE + 1][256]; // [MouseDevices] MOUSEn: the device path of mouse n
+static struct
+{
+    SDL_MouseID id;
+    int slot;
+    float x, y; // its pointer, in window coordinates
+} gMice[16];
+static int gNumMice = 0;
 BindingPair gJoyAxisBindings[MAX_JOYSTICKS][MAX_JOY_AXES];
 BindingPair gJoyButtonBindings[MAX_JOYSTICKS][MAX_JOY_BUTTONS];
 BindingPair gControllerAxisBindings[MAX_JOYSTICKS][SDL_GAMEPAD_AXIS_COUNT];
 BindingPair gControllerButtonBindings[MAX_JOYSTICKS][SDL_GAMEPAD_BUTTON_COUNT];
 HatBinding gJoyHatBindings[MAX_JOYSTICKS][MAX_JOY_HATS];
 bool gTriggerInsertKey = false;
+bool gFullscreenHotkeyBound = false; // [Common] ToggleFullscreen replaces the built-in Alt+Enter / F11
+bool gFpsHotkeyBound = false;        // [Common] ToggleFpsOverlay replaces the built-in F12
 
 extern uint32_t gId;
 extern int gGrp;
@@ -171,7 +189,9 @@ const struct
                       {"ButtonKan", LA_Kan},
                       {"ButtonAgari", LA_Agari},
                       {"ButtonCancel", LA_Cancel},
-                      {"ExitGame", LA_ExitGame}};
+                      {"ExitGame", LA_ExitGame},
+                      {"ToggleFullscreen", LA_ToggleFullscreen},
+                      {"ToggleFpsOverlay", LA_ToggleFpsOverlay}};
 
 const int NUM_ACTION_NAMES = sizeof(gActionNameMap) / sizeof(gActionNameMap[0]);
 
@@ -453,7 +473,8 @@ bool parseActionKey(const char *key, JVSPlayer *out_player, LogicalAction *out_a
     {
         *out_player = PLAYER_1;
         strcpy(genericKey, key);
-        if (strcmp(genericKey, "Test") == 0||strcmp(genericKey, "ExitGame") == 0)
+        if (strcmp(genericKey, "Test") == 0 || strcmp(genericKey, "ExitGame") == 0 ||
+            strcmp(genericKey, "ToggleFullscreen") == 0 || strcmp(genericKey, "ToggleFpsOverlay") == 0)
             *out_player = SYSTEM;
     }
     for (int i = 0; i < NUM_ACTION_NAMES; i++)
@@ -697,18 +718,18 @@ void addBinding(ControlBinding binding)
                 }
                 break;
             case INPUT_TYPE_MOUSE_BUTTON:
-                if (binding.sdlId < MAX_MOUSE_BUTTONS)
+                if (binding.sdlId < MAX_MOUSE_BUTTONS && binding.deviceIndex <= MAX_MICE)
                 {
-                    pair = &gMouseButtonBindings[binding.sdlId];
-                    snprintf(inputName, sizeof(inputName), "MOUSE_BUTTON_%d", binding.sdlId);
+                    pair = &gMouseButtonBindings[binding.deviceIndex][binding.sdlId];
+                    snprintf(inputName, sizeof(inputName), "MOUSE%d_BUTTON_%d", binding.deviceIndex, binding.sdlId);
                 }
                 break;
             case INPUT_TYPE_MOUSE_AXIS:
-                if (binding.sdlId < 2)
+                if (binding.sdlId < 2 && binding.deviceIndex <= MAX_MICE)
                 {
                     // Mouse axes are special — keep single binding behavior
-                    ControlBinding *existing = &gMouseAxisBindings[binding.sdlId];
-                    snprintf(inputName, sizeof(inputName), "MOUSE_AXIS_%d", binding.sdlId);
+                    ControlBinding *existing = &gMouseAxisBindings[binding.deviceIndex][binding.sdlId];
+                    snprintf(inputName, sizeof(inputName), "MOUSE%d_AXIS_%d", binding.deviceIndex, binding.sdlId);
                     if (existing->type != INPUT_TYPE_NONE && existing->action != binding.action)
                     {
                         getLogicalActionString(existing, name1, sizeof(name1), "");
@@ -1033,9 +1054,12 @@ void parseSdlSource(const char *token, JVSPlayer player, LogicalAction action, i
                 map.axisThreshold = SDL_HAT_RIGHT;
         }
     }
-    else if (strncmp(mutableToken, "MOUSE_", 6) == 0)
+    else if (strncmp(mutableToken, "MOUSE", 5) == 0 &&
+             (mutableToken[5] == '_' || (mutableToken[5] >= '1' && mutableToken[5] <= '0' + MAX_MICE && mutableToken[6] == '_')))
     {
-        const char *mouseToken = mutableToken + 6;
+        // MOUSE_ is any mouse, MOUSEn_ mouse n.
+        map.deviceIndex = mutableToken[5] == '_' ? 0 : mutableToken[5] - '0';
+        const char *mouseToken = mutableToken + (mutableToken[5] == '_' ? 6 : 7);
         if (strcmp(mouseToken, "AXIS_X") == 0)
         {
             map.type = INPUT_TYPE_MOUSE_AXIS;
@@ -1060,6 +1084,16 @@ void parseSdlSource(const char *token, JVSPlayer player, LogicalAction action, i
         {
             map.type = INPUT_TYPE_MOUSE_BUTTON;
             map.sdlId = SDL_BUTTON_MIDDLE;
+        }
+        else if (strncmp(mouseToken, "BUTTON_", 7) == 0)
+        {
+            // Any other button by number: 4 and 5 are the side (back and forward) buttons.
+            const int n = atoi(mouseToken + 7);
+            if (n >= 1 && n < MAX_MOUSE_BUTTONS)
+            {
+                map.type = INPUT_TYPE_MOUSE_BUTTON;
+                map.sdlId = n;
+            }
         }
     }
     if (map.type != INPUT_TYPE_NONE)
@@ -1230,6 +1264,10 @@ int loadProfileFromIni(const IniSection *section)
 
         if (action == LA_ExitGame)
             exitGameFound = true;
+        if (action == LA_ToggleFullscreen && section->pairs[i].value[0] != '\0')
+            gFullscreenHotkeyBound = true;
+        if (action == LA_ToggleFpsOverlay && section->pairs[i].value[0] != '\0')
+            gFpsHotkeyBound = true;
 
         if (player != SYSTEM && (action != LA_Card1Insert || action != LA_Card2Insert))
             player = fixPlayerForAction(action, player);
@@ -1423,6 +1461,23 @@ void loadGlobalConfig(const IniConfig *ini)
         }
     }
 
+    // Which mouse is which with raw mouse input: [MouseDevices] MOUSE1 = <device path>, ...
+    const IniSection *mouseSection = iniGetSection(ini, "MouseDevices");
+    for (int i = 0; mouseSection && i < mouseSection->numPairs; i++)
+    {
+        int n;
+        if (sscanf(mouseSection->pairs[i].key, "MOUSE%d", &n) == 1 && n >= 1 && n <= MAX_MICE)
+        {
+            const char *value = mouseSection->pairs[i].value;
+            if (*value == '"')
+                value++;
+            SDL_strlcpy(gMousePaths[n], value, sizeof(gMousePaths[n]));
+            char *quote = strchr(gMousePaths[n], '"');
+            if (quote)
+                *quote = '\0';
+        }
+    }
+
     // Load saved controller GUIDs
     const IniSection *guidSection = iniGetSection(ini, "ControllerGUIDs");
     if (guidSection)
@@ -1532,6 +1587,232 @@ void updateBindingState(ControlBinding *binding, bool isActive, float analogValu
  * updates the internal state of the corresponding logical action.
  * @param e Pointer to the SDL_Event to process.
  */
+// --- Mouse -------------------------------------------------------------------------------------
+
+// Index into gMice for a mouse, adding it with its pointer in the middle of the window.
+static int mouseIndex(SDL_MouseID id, int w, int h)
+{
+    for (int i = 0; i < gNumMice; i++)
+        if (gMice[i].id == id)
+            return i;
+    // Table full (unplugged mice come back with new IDs): reuse an entry of a mouse without a slot of
+    // its own; there are more entries than slots, so there is one.
+    int i = gNumMice;
+    if (gNumMice == (int)SDL_arraysize(gMice))
+    {
+        for (i = 0; i < gNumMice - 1 && gMice[i].slot; i++)
+            ;
+        gMice[i].id = 0;
+        gMice[i].slot = -1;
+    }
+
+    // Its slot: the MOUSEn whose [MouseDevices] path is this mouse's; else the first slot neither named
+    // in [MouseDevices] nor taken, in the order the mice turn up.
+    int slot = 0;
+    char path[256];
+    if (getMouseDevicePath(id, path, sizeof(path)))
+        for (int n = 1; n <= MAX_MICE && !slot; n++)
+            if (gMousePaths[n][0] && SDL_strcasecmp(gMousePaths[n], path) == 0)
+                slot = n;
+    for (int n = 1; n <= MAX_MICE && !slot; n++)
+    {
+        bool taken = gMousePaths[n][0] != '\0';
+        for (int j = 0; j < gNumMice; j++)
+            taken |= gMice[j].slot == n;
+        if (!taken)
+            slot = n;
+    }
+    if (i == gNumMice)
+        gNumMice++;
+    gMice[i].id = id;
+    gMice[i].slot = slot;
+    gMice[i].x = w / 2.0f;
+    gMice[i].y = h / 2.0f;
+    log_info("Mouse %u (%s) is MOUSE%d\n", (unsigned)id, SDL_GetMouseNameForID(id) ? SDL_GetMouseNameForID(id) : "?", slot);
+    return i;
+}
+
+// The binding slot of the mouse that sent an event (1 without raw input); with raw input x and y
+// become that mouse's own pointer.
+static int mouseSlot(SDL_MouseID id, float *x, float *y)
+{
+    if (!gRawMice)
+        return 1;
+    int w = 0, h = 0;
+    SDL_GetWindowSize(g_SdlWindow, &w, &h);
+    const int i = mouseIndex(id, w, h);
+    *x = gMice[i].x;
+    *y = gMice[i].y;
+    return gMice[i].slot;
+}
+
+// With raw input, a mouse named in [MouseDevices] belongs to its player: MOUSE_ ("any mouse")
+// bindings of the other players ignore it.
+static bool mouseClaimed(int slot)
+{
+    return gRawMice && slot > 0 && gMousePaths[slot][0] != '\0';
+}
+
+void enableRawMice(SDL_Window *window)
+{
+    if (!getConfig()->rawMouseInput || getConfig()->gameType != SHOOTING || !window)
+        return;
+    if (!SDL_SetWindowRelativeMouseMode(window, true))
+    {
+        log_error("Raw mouse input: %s\n", SDL_GetError());
+        return;
+    }
+    gRawMice = true;
+    log_info("Raw mouse input: each mouse aims on its own\n");
+}
+
+// A window position as a fraction of the game picture (0-1 each way).
+static void mousePosition(float mX, float mY, float *outX, float *outY)
+{
+    float posX = 0.0f, posY = 0.0f;
+
+    if (gId == PRIMEVAL_HUNT_SBPP)
+    {
+        int x, y;
+        if (phIsDragging && phIsInsideTouchScreen(mX, mY, &x, &y))
+            phTouchClick(x, y, SDL_EVENT_MOUSE_MOTION);
+
+        int motX = mX, motY = mY;
+        phTouchScreenCursor(mX, mY, &motX, &motY);
+        posX = ((float)(motX - phX) / (float)phW);
+        posY = ((float)(motY - phY) / (float)phH);
+    }
+    else
+    {
+        if (mX <= dest.X)
+            posX = 0;
+        else if (mX >= (dest.W + dest.X - 5))
+            posX = dest.W;
+        else
+            posX = mX - dest.X;
+
+        if (mY <= dest.Y)
+            posY = 0;
+        else if (mY >= (dest.H + dest.Y - 5))
+            posY = dest.H;
+        else
+            posY = mY - dest.Y;
+
+        posX /= dest.W;
+        posY /= dest.H;
+    }
+
+    *outX = posX;
+    *outY = posY;
+}
+
+// Aims the gun (or whatever the mouse axes are bound to) of one set of mouse axis bindings.
+static void handleMouseAxes(ControlBinding *bindingX, ControlBinding *bindingY, float posX, float posY)
+{
+    if (bindingX->type == INPUT_TYPE_NONE && bindingY->type == INPUT_TYPE_NONE)
+        return;
+    static bool outOfBounds[MAX_PLAYERS + 1] = {false};
+    JVSPlayer reloadPlayer = (bindingX->type != INPUT_TYPE_NONE) ? bindingX->player : PLAYER_1;
+    if (gameType == SHOOTING && (posX <= 0.01 || posX >= 0.99 || posY <= 0.01 || posY >= 0.99))
+    {
+        outOfBounds[reloadPlayer] = true;
+        if (gId == RAMBO_SBQL || gId == RAMBO_SBSS_CHINA || gId == TOO_SPICY_SBMV)
+        {
+            if (bindingX->type != INPUT_TYPE_NONE)
+            {
+                ActionState *state = &gActionStates[bindingX->player][LA_GunX];
+                state->analogValue = -1;
+                addActionToDirtyList(bindingX->player, LA_GunX);
+            }
+            if (bindingY->type != INPUT_TYPE_NONE)
+            {
+                ActionState *state = &gActionStates[bindingY->player][LA_GunY];
+                state->analogValue = -1;
+                addActionToDirtyList(bindingY->player, LA_GunY);
+            }
+        }
+        gActionStates[reloadPlayer][LA_Reload].isActive = true;
+        addActionToDirtyList(reloadPlayer, LA_Reload);
+        return;
+    }
+    else
+    {
+        if (outOfBounds[reloadPlayer])
+        {
+            gActionStates[reloadPlayer][LA_Reload].isActive = false;
+            addActionToDirtyList(reloadPlayer, LA_Reload);
+            outOfBounds[reloadPlayer] = false;
+        }
+    }
+
+    if (bindingX->type != INPUT_TYPE_NONE)
+    {
+        ActionState *state = &gActionStates[bindingX->player][bindingX->action];
+        if (fabs(state->analogValue - posX) > 0.001f)
+        {
+            if (bindingX->isInverted)
+                state->analogValue = 1.0 - posX;
+            else
+                state->analogValue = posX;
+            addActionToDirtyList(bindingX->player, bindingX->action);
+        }
+    }
+
+    if (bindingY->type != INPUT_TYPE_NONE)
+    {
+        ActionState *state = &gActionStates[bindingY->player][bindingY->action];
+        if (fabs(state->analogValue - posY) > 0.001f)
+        {
+            if (bindingY->isInverted)
+                state->analogValue = 1.0 - posY;
+            else
+                state->analogValue = posY;
+            addActionToDirtyList(bindingY->player, bindingY->action);
+        }
+    }
+}
+
+// Presses or releases what one mouse button's bindings are bound to; x, y is the pointer.
+static void handleMouseButton(BindingPair *mouseBtnPair, const SDL_Event *e, float x, float y)
+{
+    for (int mi = 0; mi < 2; mi++)
+    {
+        ControlBinding *binding = &mouseBtnPair->bindings[mi];
+        if (binding->type != INPUT_TYPE_NONE)
+        {
+            bool isActive = (e->type == SDL_EVENT_MOUSE_BUTTON_DOWN);
+            updateBindingState(binding, isActive, isActive ? 1.0f : 0.0f);
+            // Special behavior for shooting games requiring explicit mouse clicks
+            int tx, ty;
+            if (gId == PRIMEVAL_HUNT_SBPP && getConfig()->emulateTouchscreen &&
+                phIsInsideTouchScreen(x, y, &tx, &ty))
+            {
+                phTouchClick(tx, ty, e->type);
+                phIsDragging = isActive;
+            }
+            else
+            {
+                if (e->button.button == SDL_BUTTON_RIGHT &&
+                    (gId == RAMBO_SBQL || gId == RAMBO_SBSS_CHINA || gId == TOO_SPICY_SBMV) && isActive)
+                {
+                    ActionState *state = &gActionStates[binding->player][LA_GunX];
+                    state->analogValue = -1;
+                    addActionToDirtyList(binding->player, LA_GunX);
+                    state = &gActionStates[binding->player][LA_GunY];
+                    state->analogValue = -1;
+                    addActionToDirtyList(binding->player, LA_GunY);
+                    gActionStates[binding->player][LA_Reload].isActive = isActive;
+                    addActionToDirtyList(binding->player, LA_Reload);
+                }
+                else
+                {
+                    addActionToDirtyList(binding->player, binding->action);
+                }
+            }
+        }
+    }
+}
+
 void processSdlEvent(const SDL_Event *e)
 {
 #ifdef __linux__
@@ -1827,43 +2108,12 @@ void processSdlEvent(const SDL_Event *e)
         {
             if (e->button.button < MAX_MOUSE_BUTTONS)
             {
-                BindingPair *mouseBtnPair = &gMouseButtonBindings[e->button.button];
-                for (int mi = 0; mi < 2; mi++)
-                {
-                    ControlBinding *binding = &mouseBtnPair->bindings[mi];
-                    if (binding->type != INPUT_TYPE_NONE)
-                    {
-                        bool isActive = (e->type == SDL_EVENT_MOUSE_BUTTON_DOWN);
-                        updateBindingState(binding, isActive, isActive ? 1.0f : 0.0f);
-                        // Special behavior for shooting games requiring explicit mouse clicks
-                        int x, y;
-                        if (gId == PRIMEVAL_HUNT_SBPP && getConfig()->emulateTouchscreen &&
-                            phIsInsideTouchScreen(e->motion.x, e->motion.y, &x, &y))
-                        {
-                            phTouchClick(x, y, e->type);
-                            phIsDragging = isActive;
-                        }
-                        else
-                        {
-                            if (e->button.button == SDL_BUTTON_RIGHT &&
-                                (gId == RAMBO_SBQL || gId == RAMBO_SBSS_CHINA || gId == TOO_SPICY_SBMV) && isActive)
-                            {
-                                ActionState *state = &gActionStates[binding->player][LA_GunX];
-                                state->analogValue = -1;
-                                addActionToDirtyList(binding->player, LA_GunX);
-                                state = &gActionStates[binding->player][LA_GunY];
-                                state->analogValue = -1;
-                                addActionToDirtyList(binding->player, LA_GunY);
-                                gActionStates[binding->player][LA_Reload].isActive = isActive;
-                                addActionToDirtyList(binding->player, LA_Reload);
-                            }
-                            else
-                            {
-                                addActionToDirtyList(binding->player, binding->action);
-                            }
-                        }
-                    }
-                }
+                float x = e->button.x, y = e->button.y;
+                const int slot = mouseSlot(e->button.which, &x, &y);
+                if (!mouseClaimed(slot))
+                    handleMouseButton(&gMouseButtonBindings[0][e->button.button], e, x, y);
+                if (slot > 0)
+                    handleMouseButton(&gMouseButtonBindings[slot][e->button.button], e, x, y);
                 if (gameType == MAHJONG && getConfig()->emulateTouchscreen)
                     handleMahjongTouch(e, drawableW, drawableH);
             }
@@ -1871,102 +2121,30 @@ void processSdlEvent(const SDL_Event *e)
         break;
         case SDL_EVENT_MOUSE_MOTION:
         {
-            float mX = e->motion.x;
-            float mY = e->motion.y;
-            float posX = 0.0f, posY = 0.0f;
-
-            if (gId == PRIMEVAL_HUNT_SBPP)
+            float x = e->motion.x, y = e->motion.y;
+            int slot;
+            if (gRawMice)
             {
-                int x, y;
-                if (phIsDragging && phIsInsideTouchScreen(mX, mY, &x, &y))
-                    phTouchClick(x, y, e->type);
-
-                int motX = mX, motY = mY;
-                phTouchScreenCursor(mX, mY, &motX, &motY);
-                posX = ((float)(motX - phX) / (float)phW);
-                posY = ((float)(motY - phY) / (float)phH);
+                // Relative mode: move this mouse's own pointer, kept inside the window.
+                int w = 0, h = 0;
+                SDL_GetWindowSize(SDL_GetWindowFromID(e->motion.windowID), &w, &h);
+                const int i = mouseIndex(e->motion.which, w, h);
+                gMice[i].x = SDL_clamp(gMice[i].x + e->motion.xrel, 0.0f, (float)w);
+                gMice[i].y = SDL_clamp(gMice[i].y + e->motion.yrel, 0.0f, (float)h);
+                slot = gMice[i].slot;
+                x = gMice[i].x;
+                y = gMice[i].y;
             }
             else
             {
-                if (mX <= dest.X)
-                    posX = 0;
-                else if (mX >= (dest.W + dest.X - 5))
-                    posX = dest.W;
-                else
-                    posX = mX - dest.X;
-
-                if (mY <= dest.Y)
-                    posY = 0;
-                else if (mY >= (dest.H + dest.Y - 5))
-                    posY = dest.H;
-                else
-                    posY = mY - dest.Y;
-
-                posX /= dest.W;
-                posY /= dest.H;
+                slot = 1;
             }
-
-            ControlBinding *bindingX = &gMouseAxisBindings[0]; // X-Axis
-            ControlBinding *bindingY = &gMouseAxisBindings[1]; // Y-Axis
-            static bool outOfBounds[MAX_PLAYERS + 1] = {false};
-            JVSPlayer reloadPlayer = (bindingX->type != INPUT_TYPE_NONE) ? bindingX->player : PLAYER_1;
-            if (gameType == SHOOTING && (posX <= 0.01 || posX >= 0.99 || posY <= 0.01 || posY >= 0.99))
-            {
-                outOfBounds[reloadPlayer] = true;
-                if (gId == RAMBO_SBQL || gId == RAMBO_SBSS_CHINA || gId == TOO_SPICY_SBMV)
-                {
-                    if (bindingX->type != INPUT_TYPE_NONE)
-                    {
-                        ActionState *state = &gActionStates[bindingX->player][LA_GunX];
-                        state->analogValue = -1;
-                        addActionToDirtyList(bindingX->player, LA_GunX);
-                    }
-                    if (bindingY->type != INPUT_TYPE_NONE)
-                    {
-                        ActionState *state = &gActionStates[bindingY->player][LA_GunY];
-                        state->analogValue = -1;
-                        addActionToDirtyList(bindingY->player, LA_GunY);
-                    }
-                }
-                gActionStates[reloadPlayer][LA_Reload].isActive = true;
-                addActionToDirtyList(reloadPlayer, LA_Reload);
-                break;
-            }
-            else
-            {
-                if (outOfBounds[reloadPlayer])
-                {
-                    gActionStates[reloadPlayer][LA_Reload].isActive = false;
-                    addActionToDirtyList(reloadPlayer, LA_Reload);
-                    outOfBounds[reloadPlayer] = false;
-                }
-            }
-
-            if (bindingX->type != INPUT_TYPE_NONE)
-            {
-                ActionState *state = &gActionStates[bindingX->player][bindingX->action];
-                if (fabs(state->analogValue - posX) > 0.001f)
-                {
-                    if (bindingX->isInverted)
-                        state->analogValue = 1.0 - posX;
-                    else
-                        state->analogValue = posX;
-                    addActionToDirtyList(bindingX->player, bindingX->action);
-                }
-            }
-
-            if (bindingY->type != INPUT_TYPE_NONE)
-            {
-                ActionState *state = &gActionStates[bindingY->player][bindingY->action];
-                if (fabs(state->analogValue - posY) > 0.001f)
-                {
-                    if (bindingY->isInverted)
-                        state->analogValue = 1.0 - posY;
-                    else
-                        state->analogValue = posY;
-                    addActionToDirtyList(bindingY->player, bindingY->action);
-                }
-            }
+            float posX, posY;
+            mousePosition(x, y, &posX, &posY);
+            if (!mouseClaimed(slot))
+                handleMouseAxes(&gMouseAxisBindings[0][0], &gMouseAxisBindings[0][1], posX, posY);
+            if (slot > 0)
+                handleMouseAxes(&gMouseAxisBindings[slot][0], &gMouseAxisBindings[slot][1], posX, posY);
         }
         break;
         case SDL_EVENT_WINDOW_MOUSE_LEAVE:
@@ -2130,6 +2308,18 @@ void processChangedActions()
         if (actionId == LA_ExitGame && gActionStates[player][actionId].isActive)
         {
             sdlQuit();
+            continue;
+        }
+        if (actionId == LA_ToggleFullscreen)
+        {
+            if (gActionStates[player][actionId].isActive)
+                toggleFullscreen();
+            continue;
+        }
+        if (actionId == LA_ToggleFpsOverlay)
+        {
+            if (gActionStates[player][actionId].isActive)
+                fpsOverlayToggleVisibility();
             continue;
         }
 

@@ -36,6 +36,8 @@ int createDefaultIni(const char *filePath)
     fprintf(file, "BLACK_BORDER_PERCENTAGE = %.1f\n\n", defaults.blackBorderPercentage * 100.0f);
     fprintf(file, "# Set to keep the aspect ratio in games like Sega Race TV Primeval Hunt and LGJ-SP\n");
     fprintf(file, "KEEP_ASPECT_RATIO = %s\n\n", defaults.keepAspectRatio ? "true" : "false");
+    fprintf(file, "# Set to fill a WIDTH x HEIGHT wider than 4:3 with a wider 3D view (the HUD stays 4:3). Sega Race TV\n");
+    fprintf(file, "WIDESCREEN = %s\n\n", defaults.widescreen ? "true" : "false");
     fprintf(file, "# Set to true to enable the mouse pointer/Cursor\nHIDE_CURSOR = %s\n\n", defaults.hideCursor ? "true" : "false");
     fprintf(file, "# Set to false if you don't want to limit the FPS\n");
     fprintf(file, "FPS_LIMITER_ENABLED = %s\n\n", defaults.fpsLimiter ? "true" : "false");
@@ -48,10 +50,20 @@ int createDefaultIni(const char *filePath)
     fprintf(file, "# Set the position of the FPS overlay (0: TOP_LEFT, 1: TOP_RIGHT, 2: BOTTOM_LEFT, 3: BOTTOM_RIGHT)\n");
     fprintf(file, "FPS_OVERLAY_POSITION = %d\n\n", defaults.fpsOverlayPosition);
 
+    // [Audio]
+    fprintf(file, "[Audio]\n");
+    fprintf(file, "# Name of the playback device to use, empty for the system default\n");
+    fprintf(file, "AUDIO_DEVICE = \"%s\"\n\n", defaults.audioDevice);
+    fprintf(file, "# Volume in percent (0 mutes the game)\nAUDIO_VOLUME = %d\n\n", defaults.audioVolume);
+
     // [Input]
     fprintf(file, "[Input]\n");
     fprintf(file, "# Sets the Input Mode (1: SDL, 2: EVDEV\n");
     fprintf(file, "INPUT_MODE = %d\n\n", defaults.inputMode);
+    fprintf(file, "# Lightgun games: read each mouse on its own (raw input), so every player can aim with their own\n"
+                  "# mouse. Bind them as MOUSE1_..., MOUSE2_... in controls.ini; [MouseDevices] MOUSE1 = <device path>\n"
+                  "# picks which mouse is which.\n");
+    fprintf(file, "RAW_MOUSE_INPUT = %s\n\n", defaults.rawMouseInput ? "true" : "false");
 
     // [Emulation]
     fprintf(file, "[Emulation]\n");
@@ -175,6 +187,9 @@ int createDefaultIni(const char *filePath)
     fprintf(file, "# Sets the IP address of each cabinet for network play in 2Spicy\n");
     fprintf(file, "2SPICY_IP_CAB1 = \"192.168.1.2\"\n2SPICY_IP_CAB2 = \"192.168.1.3\"\n\n");
     fprintf(file, "# Sets the IP address for SRTV\nSRTV_IPADDRESS = \"192.168.1.2\"\n\n");
+    fprintf(file, "# Link play on this PC: run one loader per cabinet (each with its own save data and cabinet ID).\n"
+                  "# Cabinets talk over loopback addresses (Sega Race TV: 127.0.49.<cabinet>).\n");
+    fprintf(file, "LOOPBACK_LINK = false\n\n");
 
     // [EVDEV]
     fprintf(file, "[EVDEV]\n");

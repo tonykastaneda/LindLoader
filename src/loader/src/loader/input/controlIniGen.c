@@ -251,18 +251,24 @@ static void getBindingString(const ControlBinding *binding, char *buffer, size_t
             snprintf(temp_buffer, sizeof(temp_buffer), "KEY_%s", SDL_GetScancodeName(binding->sdlId));
             break;
         case INPUT_TYPE_MOUSE_BUTTON:
-            if (binding->sdlId == SDL_BUTTON_LEFT)
-                strcpy(temp_buffer, "MOUSE_LEFT_BUTTON");
-            else if (binding->sdlId == SDL_BUTTON_RIGHT)
-                strcpy(temp_buffer, "MOUSE_RIGHT_BUTTON");
-            else if (binding->sdlId == SDL_BUTTON_MIDDLE)
-                strcpy(temp_buffer, "MOUSE_MIDDLE_BUTTON");
-            else
-                snprintf(temp_buffer, sizeof(temp_buffer), "MOUSE_BUTTON_%d", binding->sdlId);
-            break;
         case INPUT_TYPE_MOUSE_AXIS:
-            snprintf(temp_buffer, sizeof(temp_buffer), "MOUSE_AXIS_%c", binding->sdlId == 0 ? 'X' : 'Y');
+        {
+            // MOUSE_ (any mouse) or MOUSEn_
+            char mouse[8] = "MOUSE";
+            if (binding->deviceIndex > 0)
+                snprintf(mouse, sizeof(mouse), "MOUSE%d", binding->deviceIndex);
+            if (binding->type == INPUT_TYPE_MOUSE_AXIS)
+                snprintf(temp_buffer, sizeof(temp_buffer), "%s_AXIS_%c", mouse, binding->sdlId == 0 ? 'X' : 'Y');
+            else if (binding->sdlId == SDL_BUTTON_LEFT)
+                snprintf(temp_buffer, sizeof(temp_buffer), "%s_LEFT_BUTTON", mouse);
+            else if (binding->sdlId == SDL_BUTTON_RIGHT)
+                snprintf(temp_buffer, sizeof(temp_buffer), "%s_RIGHT_BUTTON", mouse);
+            else if (binding->sdlId == SDL_BUTTON_MIDDLE)
+                snprintf(temp_buffer, sizeof(temp_buffer), "%s_MIDDLE_BUTTON", mouse);
+            else
+                snprintf(temp_buffer, sizeof(temp_buffer), "%s_BUTTON_%d", mouse, binding->sdlId);
             break;
+        }
         case INPUT_TYPE_JOY_BUTTON:
             snprintf(temp_buffer, sizeof(temp_buffer), "JOY%d_BUTTON_%d", binding->deviceIndex, binding->sdlId);
             break;

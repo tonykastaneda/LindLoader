@@ -5,6 +5,14 @@
 #include "../graphics/shaderPatches.h"
 #include "../patching/patchResolution.h"
 #include "../graphics/crossHair.h"
+#include "../graphics/glTrace.h"
+
+static GLenum gTraceMatrixMode = GL_MODELVIEW;
+static void traceMatrix(const char *what, const GLfloat *m)
+{
+    if (gTraceMatrixMode == GL_PROJECTION)
+        glTrace("%s PROJ [%.4f %.4f %.4f %.4f | %.4f %.4f %.4f %.4f | %.4f %.4f %.4f %.4f | %.4f %.4f %.4f %.4f]", what, m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9], m[10], m[11], m[12], m[13], m[14], m[15]);
+}
 
 
 extern "C" void __attribute__((cdecl)) wrap_glBegin(GLenum mode)
@@ -39,6 +47,7 @@ extern "C" void __attribute__((cdecl)) wrap_glDisable(GLenum cap)
 
 extern "C" void __attribute__((cdecl)) wrap_glMatrixMode(GLenum mode)
 {
+    gTraceMatrixMode = mode;
     if (glad_glMatrixMode)
         glad_glMatrixMode(mode);
 }
@@ -623,6 +632,7 @@ extern "C" void __attribute__((cdecl)) wrap_glVertex4f(GLfloat x, GLfloat y, GLf
 
 extern "C" void __attribute__((cdecl)) wrap_glMultMatrixf(const GLfloat *m)
 {
+    traceMatrix("mult", m);
     if (glad_glMultMatrixf)
         glad_glMultMatrixf(m);
 }
@@ -1168,6 +1178,10 @@ extern "C" void __attribute__((cdecl)) wrap_glStencilMask(GLuint mask)
 
 extern "C" void __attribute__((cdecl)) wrap_glLoadMatrixf(const GLfloat *m)
 {
+    traceMatrix("load", m);
+    GLfloat wide[16];
+    if (gTraceMatrixMode == GL_PROJECTION)
+        m = widescreenProjection(m, wide);
     if (glad_glLoadMatrixf)
         glad_glLoadMatrixf(m);
 }

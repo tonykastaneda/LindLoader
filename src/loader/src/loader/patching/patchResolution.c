@@ -5,6 +5,7 @@
 #endif
 
 #include <glad/gl.h>
+#include "../graphics/glTrace.h"
 #include <math.h>
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_stdinc.h>
@@ -29,6 +30,8 @@ extern bool phShowCursorInGame;
 
 int srtvX = 0;
 int srtvW, srtvH;
+// Widescreen: set while the game draws its main (full screen) view, where the projection gets wider.
+static bool gMainViewActive = false;
 int phX, phY, phW, phH;
 int phX2, phY2, phW2, phH2;
 
@@ -173,6 +176,7 @@ void bridgeglOrtho(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top,
 #endif
 
     void *returnAddress = __builtin_return_address(0);
+    glTrace("ortho %.1f %.1f %.1f %.1f %.1f %.1f from %p", left, right, bottom, top, zNear, zFar, returnAddress);
 
     switch (gId)
     {
@@ -250,6 +254,7 @@ void bridgeglViewport(GLint x, GLint y, GLsizei width, GLsizei height)
 {
 #endif
     void *addr = __builtin_return_address(0);
+    glTrace("viewport %d %d %d %d from %p", x, y, width, height, addr);
 
     if (gId == HUMMER_SBQN || gId == HUMMER_SBQN_REVB)
     {
@@ -283,7 +288,8 @@ void bridgeglViewport(GLint x, GLint y, GLsizei width, GLsizei height)
     {
         if (gWidth != 640 && gHeight != 480)
         {
-            if (width == 640 && height == 480 && addr == (void *)0x08123932)
+            gMainViewActive = width == 640 && height == 480 && addr == (void *)0x08123932;
+            if (gMainViewActive)
             {
                 x = srtvX;
                 width = srtvW;
@@ -3339,7 +3345,7 @@ int initResolutionPatches()
         {
             if (gWidth == 640 && gHeight == 480)
                 break;
-            if (getConfig()->keepAspectRatio)
+            if (getConfig()->keepAspectRatio && !getConfig()->widescreen)
             {
                 srtvX = (gWidth - (gHeight / 3) * 4) / 2;
                 srtvW = (gHeight / 3) * 4;
@@ -3741,4 +3747,27 @@ int initResolutionPatches()
     if (sdlDisplayId)
         SDL_free(sdlDisplayId);
     return 0;
+}
+
+/* Widescreen for a 4:3 game: in its main view, a 4:3 perspective projection sees as much more to the sides as the
+   screen is wider (same vertical field of view), and the 640x480 HUD's projection keeps it 4:3, in the middle.
+   Other projections (mirror, reflections and shadows, drawn to textures of their own shape) stay as they are. */
+const float *widescreenProjection(const float *m, float *out)
+{
+    if (!getConfig()->widescreen || gId != SEGA_RACE_TV_SBPF || !gMainViewActive || gHeight <= 0)
+        return m;
+    const float scale = (4.0f / 3.0f) / ((float)gWidth / (float)gHeight);
+    if (scale >= 0.999f)
+        return m;
+    const bool perspective = m[3] == 0.0f && m[7] == 0.0f && m[11] == -1.0f && m[15] == 0.0f && m[4] == 0.0f &&
+                             m[8] == 0.0f && m[0] > 0.0f && fabsf(m[5] / m[0] - 4.0f / 3.0f) < 0.01f;
+    const bool hud = m[3] == 0.0f && m[7] == 0.0f && m[11] == 0.0f && m[15] == 1.0f && m[4] == 0.0f &&
+                     fabsf(m[0] - 2.0f / 640.0f) < 1e-5f && fabsf(m[5] + 2.0f / 480.0f) < 1e-5f;
+    if (!perspective && !hud)
+        return m;
+    memcpy(out, m, 16 * sizeof(float));
+    out[0] *= scale;
+    if (hud)
+        out[12] *= scale;
+    return out;
 }

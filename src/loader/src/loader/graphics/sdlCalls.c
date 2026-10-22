@@ -231,6 +231,7 @@ void startSDL()
         SDL_SetWindowResizable(g_SdlWindow, true);
 
     SDL_ShowWindow(g_SdlWindow);
+    enableRawMice(g_SdlWindow);
 
     Uint64 startTime = SDL_GetTicks();
     int running = 1;
@@ -317,6 +318,37 @@ void sdlQuit()
     exit(0);
 }
 
+void toggleFullscreen()
+{
+    // These games' windows can't be resized.
+    if (gGrp == GROUP_LGJ || gId == PRIMEVAL_HUNT_SBPP)
+        return;
+    if (isFullScreen)
+    {
+        if (!SDL_SetWindowFullscreen(g_SdlWindow, 0))
+        {
+            log_error("Error setting windowed mode: %s\n", SDL_GetError());
+        }
+        else
+        {
+            if ((long long)gWidth * 3 == (long long)gHeight * 4)
+                SDL_SetWindowSize(g_SdlWindow, gWidth + 1, gHeight);
+            else
+                SDL_SetWindowSize(g_SdlWindow, gWidth, gHeight + 1);
+            isFullScreen = false;
+            if (getConfig()->fullscreen)
+                SDL_SetWindowBordered(g_SdlWindow, true);
+        }
+    }
+    else
+    {
+        if (!SDL_SetWindowFullscreen(g_SdlWindow, true))
+            log_error("Error setting fullscreen mode: %s\n", SDL_GetError());
+        else
+            isFullScreen = true;
+    }
+}
+
 void pollEvents()
 {
     SDL_Event event;
@@ -330,43 +362,17 @@ void pollEvents()
         {
             case SDL_EVENT_KEY_DOWN:
             {
-                if (gGrp != GROUP_LGJ && gId != PRIMEVAL_HUNT_SBPP)
+                // Built-in hotkeys, unless controls.ini binds its own ToggleFullscreen / ToggleFpsOverlay.
+                if (!gFullscreenHotkeyBound)
                 {
                     SDL_Keymod mod = SDL_GetModState();
                     if ((event.key.key == SDLK_RETURN && (mod & SDL_KMOD_ALT)) || event.key.key == SDLK_F11)
                     {
-                        if (isFullScreen)
-                        {
-                            if (!SDL_SetWindowFullscreen(g_SdlWindow, 0))
-                            {
-                                log_error("Error setting windowed mode: %s\n", SDL_GetError());
-                            }
-                            else
-                            {
-                                if ((long long)gWidth * 3 == (long long)gHeight * 4)
-                                    SDL_SetWindowSize(g_SdlWindow, gWidth + 1, gHeight);
-                                else
-                                    SDL_SetWindowSize(g_SdlWindow, gWidth, gHeight + 1);
-                                isFullScreen = false;
-                                if (getConfig()->fullscreen)
-                                    SDL_SetWindowBordered(g_SdlWindow, true);
-                            }
-                        }
-                        else
-                        {
-                            if (!SDL_SetWindowFullscreen(g_SdlWindow, true))
-                            {
-                                log_error("Error setting fullscreen mode: %s\n", SDL_GetError());
-                            }
-                            else
-                            {
-                                isFullScreen = true;
-                            }
-                        }
+                        toggleFullscreen();
                         break;
                     }
                 }
-                if (event.key.key == SDLK_F12)
+                if (!gFpsHotkeyBound && event.key.key == SDLK_F12)
                 {
                     fpsOverlayToggleVisibility();
                     return;

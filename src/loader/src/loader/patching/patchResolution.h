@@ -13,6 +13,11 @@ void glTexCoord2fvABC1(const float *v);
 void glVertex3fABC1(float x, float y, float z);
 void glVertex3fABC2(float x, float y, float z);
 int isTestMode();
+// Widescreen (WIDESCREEN = true): the projection to load in place of m (m itself, or out made wider).
+#ifdef __cplusplus
+extern "C"
+#endif
+const float *widescreenProjection(const float *m, float *out);
 
 typedef struct
 {

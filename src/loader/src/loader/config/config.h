@@ -298,6 +298,7 @@ typedef struct
     JVSIOType jvsIOType;
     int hummerFlickerFix;
     int keepAspectRatio;
+    int widescreen;
     int fpsLimiter;
     int vsync; /* VSYNC_AUTO, 0 off, n = swap interval n */
     int frameStats;
@@ -334,9 +335,11 @@ typedef struct
     char tooSpicyIpCab1[16];
     char tooSpicyIpCab2[16];
     char srtvIP[16];
+    int loopbackLink; // several cabinets of a linked game on this PC, one loader per cabinet (patching/netLink.h)
     float cpuFreqGhz;
     ArcadeInputs arcadeInputs;
     int inputMode; // 0 = both, 1 = SDL, 2 = EVDEV only
+    int rawMouseInput; // lightgun games: each mouse is its own gun (MOUSE1_, MOUSE2_ bindings)
     int skipOutrunCabinetCheck;
     float whiteBorderPercentage;
     float blackBorderPercentage;
@@ -350,6 +353,8 @@ typedef struct
     int customCrossHairHeight;
     int fpsOverlayEnabled;
     int fpsOverlayPosition;
+    char audioDevice[MAX_PATH_LENGTH]; // SDL playback device name, empty for the system default
+    int audioVolume;                   // 0-100 %
 } EmulatorConfig;
 
 #ifdef __cplusplus

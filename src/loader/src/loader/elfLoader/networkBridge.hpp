@@ -24,7 +24,8 @@ namespace NetworkBridge
     extern "C" int bridgeSetsockopt(SOCKET s, int level, int optname, const char *optval, int optlen);
     extern "C" int bridgeGetsockopt(SOCKET s, int level, int optname, char *optval, int *optlen);
     extern "C" int bridgeGetsockname(SOCKET s, struct sockaddr *name, int *namelen);
-    extern "C" int bridgeSendmsgUnsupported(SOCKET s, void *msg, int flags);
+    extern "C" int bridgeSendmsg(SOCKET s, const void *msg, int flags);
+    extern "C" int bridgeRecvmsg(SOCKET s, void *msg, int flags);
     extern "C" int bridgeShutdown(SOCKET s, int how);
     int bridgeGethostbyname_r(const char *name, void *ret, char *buf, size_t buflen, void **result, int *h_errnop);
     int bridgeGethostbyaddr_r(const void *addr, int len, int type, void *ret, char *buf, size_t buflen, void **result,

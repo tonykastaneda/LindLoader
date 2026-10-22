@@ -15,6 +15,7 @@
 #define MAX_JOY_AXES 32
 #define MAX_JOY_HATS 4
 #define MAX_MOUSE_BUTTONS 16
+#define MAX_MICE 4 // MOUSE1_ ... MOUSE4_ bindings
 
 typedef enum
 {
@@ -96,6 +97,8 @@ typedef enum
     LA_Agari,
     LA_Cancel,
     LA_ExitGame,
+    LA_ToggleFullscreen,
+    LA_ToggleFpsOverlay,
     NUM_LOGICAL_ACTIONS
 } LogicalAction;
 
@@ -242,6 +245,10 @@ void getLogicalActionString(const ControlBinding *binding, char *out_str, size_t
 bool needsPlayer(LogicalAction action, const char *name);
 int listSdlControllers(void);
 void addActionToDirtyList(JVSPlayer player, LogicalAction action);
+void enableRawMice(SDL_Window *window);
+
+extern bool gFullscreenHotkeyBound;
+extern bool gFpsHotkeyBound;
 
 #ifdef __cplusplus
 }

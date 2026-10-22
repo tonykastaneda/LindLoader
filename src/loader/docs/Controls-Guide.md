@@ -125,9 +125,15 @@ The value for each key is a comma-separated list of physical input strings. Here
 
 ## **Mouse** 
 
-- **Buttons** : MOUSE_LEFT_BUTTON, MOUSE_RIGHT_BUTTON, MOUSE_MIDDLE_BUTTON 
+- **Buttons** : MOUSE_LEFT_BUTTON, MOUSE_RIGHT_BUTTON, MOUSE_MIDDLE_BUTTON, and MOUSE_BUTTON_<n> for the others: MOUSE_BUTTON_4 and MOUSE_BUTTON_5 are the side (back and forward) buttons, e.g. P2_Coin = MOUSE2_BUTTON_4 
 
 - **Axes** : MOUSE_AXIS_X, MOUSE_AXIS_Y 
+
+- **One mouse per player** : with RAW_MOUSE_INPUT = true in linuxloader.ini (lightgun games), MOUSE1_, MOUSE2_, ... bind one mouse each (e.g. P2_GunX = MOUSE2_AXIS_X), while MOUSE_ still means any mouse. Which mouse is which is set in the [MouseDevices] section, by Windows raw input device path: MOUSE1 = "\\?\HID#VID_046D&PID_C548&...". Mice that aren't listed there take the free numbers in the order they're first moved. 
+
+## **Hotkeys** 
+
+In the [Common] section: Test, ExitGame, ToggleFullscreen and ToggleFpsOverlay. Without a ToggleFullscreen binding, Alt+Enter and F11 toggle fullscreen; without ToggleFpsOverlay, F12 toggles the FPS overlay. 
 
 ## **Generic Joysticks (JOY) and Standard Gamepads (GC)** 
 

@@ -149,6 +149,12 @@ const char *networkRemapInetAddr(const char *cp)
         if (strcmp("192.168.49.1", cp) == 0 || strcmp("192.168.49.2", cp) == 0 || strcmp("192.168.49.3", cp) == 0 ||
             strcmp("192.168.49.4", cp) == 0)
         {
+            // Link play on this PC: each cabinet keeps its own address, on loopback.
+            if (getConfig()->loopbackLink)
+            {
+                static const char *const loopback[] = {"127.0.49.1", "127.0.49.2", "127.0.49.3", "127.0.49.4"};
+                return loopback[cp[11] - '1'];
+            }
             if (strcmp(getConfig()->srtvIP, "") != 0)
                 return getConfig()->srtvIP;
             // Prevents the game to crash if the IP does not match the PC's IP.

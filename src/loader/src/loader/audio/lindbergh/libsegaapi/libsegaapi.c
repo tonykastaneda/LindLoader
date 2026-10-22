@@ -7,6 +7,10 @@
 #include <string.h>
 #include <stdarg.h>
 #include <pthread.h>
+#include <SDL3/SDL.h>
+
+#include "../../../config/config.h"
+#include "../../../log/log.h"
 
 GUID EAX_NULL_GUID;
 GUID EAX_FREQUENCYSHIFTER_EFFECT;
@@ -1114,6 +1118,31 @@ int SEGAAPI_Reset(void)
     return SEGA_SUCCESS;
 }
 
+// FAudio's index of the device named by AUDIO_DEVICE, or 0 (the system default).
+static uint32_t configuredDeviceIndex(void)
+{
+    const char *wanted = getConfig()->audioDevice;
+    uint32_t count = 0;
+    if (wanted[0] == '\0' || FAudio_GetDeviceCount(fAudio, &count) != 0)
+        return 0;
+    for (uint32_t i = 0; i < count; i++)
+    {
+        FAudioDeviceDetails details;
+        if (FAudio_GetDeviceDetails(fAudio, i, &details) != 0)
+            continue;
+        size_t len = 0;
+        while (len < 255 && details.DisplayName[len] != 0)
+            len++;
+        char *name = SDL_iconv_string("UTF-8", "UTF-16LE", (const char *)details.DisplayName, (len + 1) * 2);
+        const int match = name && strcmp(name, wanted) == 0;
+        SDL_free(name);
+        if (match)
+            return i;
+    }
+    log_warn("SEGAAPI: Audio device '%s' not found, using the default\n", wanted);
+    return 0;
+}
+
 int SEGAAPI_Init(void)
 {
     pthread_mutex_init(&fAudioMutex, NULL);
@@ -1121,8 +1150,9 @@ int SEGAAPI_Init(void)
 
     FAudioCreate(&fAudio, 0, FAUDIO_DEFAULT_PROCESSOR);
 
-    FAudio_CreateMasteringVoice(fAudio, &fAudioMasteringVoice, FAUDIO_DEFAULT_CHANNELS, FAUDIO_DEFAULT_SAMPLERATE, 0, 0,
-                                NULL);
+    FAudio_CreateMasteringVoice(fAudio, &fAudioMasteringVoice, FAUDIO_DEFAULT_CHANNELS, FAUDIO_DEFAULT_SAMPLERATE, 0,
+                                configuredDeviceIndex(), NULL);
+    FAudioVoice_SetVolume(fAudioMasteringVoice, getConfig()->audioVolume / 100.0f, FAUDIO_COMMIT_NOW);
 
     FAudioVoiceDetails fAudioVoiceDetails;
     FAudioVoice_GetVoiceDetails(fAudioMasteringVoice, &fAudioVoiceDetails);

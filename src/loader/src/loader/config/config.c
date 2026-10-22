@@ -132,6 +132,8 @@ void setDefaultValues(EmulatorConfig *cfg)
     cfg->lindberghColour = YELLOW;
     strcpy(cfg->eepromPath, "eeprom.bin");
     strcpy(cfg->sramPath, "sram.bin");
+    strcpy(cfg->audioDevice, "");
+    cfg->audioVolume = 100;
     strcpy(cfg->libCgPath, "");
     strcpy(cfg->jvsPath, "/dev/ttyUSB0");
     strcpy(cfg->serial1Path, "/dev/ttyS0");
@@ -145,6 +147,7 @@ void setDefaultValues(EmulatorConfig *cfg)
     cfg->useAltJvsPassthrough = 0;
     cfg->hummerFlickerFix = 0;
     cfg->keepAspectRatio = 1;
+    cfg->widescreen = 0;
     cfg->ramboGunsSwitch = 0;
     cfg->harleyAnalogRemap = 0;
     cfg->id5ChineseLanguage = 0;
@@ -198,6 +201,7 @@ void setDefaultValues(EmulatorConfig *cfg)
     cfg->whiteBorderPercentage = 0.02f;
     cfg->blackBorderPercentage = 0.0f;
     cfg->inputMode = 1;
+    cfg->rawMouseInput = 0;
     cfg->enableCrosshairs = 0;
     cfg->gsevoCrosshairAlwaysOn = 0;
     cfg->gsevoCrosshairAlwaysOff = 0;
@@ -322,6 +326,7 @@ void applyIniConfig(EmulatorConfig *config, const IniConfig *ini)
 	config->whiteBorderPercentage = getFloat(ini, "Display", "WHITE_BORDER_PERCENTAGE", config->whiteBorderPercentage * 100.0f) / 100.0f;
 	config->blackBorderPercentage = getFloat(ini, "Display", "BLACK_BORDER_PERCENTAGE", config->blackBorderPercentage * 100.0f) / 100.0f;
     config->keepAspectRatio = getInt(ini, "Display", "KEEP_ASPECT_RATIO", config->keepAspectRatio);
+    config->widescreen = getInt(ini, "Display", "WIDESCREEN", config->widescreen);
     config->hideCursor = getInt(ini, "Display", "HIDE_CURSOR", config->hideCursor);
     config->fpsLimiter = getInt(ini, "Display", "FPS_LIMITER_ENABLED", config->fpsLimiter);
     config->fpsTarget = getFloat(ini, "Display", "FPS_TARGET", config->fpsTarget);
@@ -332,6 +337,7 @@ void applyIniConfig(EmulatorConfig *config, const IniConfig *ini)
 
     // [Input]
     config->inputMode = getInt(ini, "Input", "INPUT_MODE", config->inputMode);
+    config->rawMouseInput = getInt(ini, "Input", "RAW_MOUSE_INPUT", config->rawMouseInput);
 
     // [Emulation]
     const char *regionRaw = getValue(ini, "Emulation", "REGION");
@@ -427,6 +433,14 @@ void applyIniConfig(EmulatorConfig *config, const IniConfig *ini)
             config->lindberghColour = REDEX;
     }
 
+    // [Audio]
+    getString(ini, "Audio", "AUDIO_DEVICE", config->audioDevice, MAX_PATH_LENGTH);
+    config->audioVolume = getInt(ini, "Audio", "AUDIO_VOLUME", config->audioVolume);
+    if (config->audioVolume < 0)
+        config->audioVolume = 0;
+    if (config->audioVolume > 100)
+        config->audioVolume = 100;
+
     // [Network]
     config->enableNetworkPatches = getInt(ini, "Network", "ENABLE_NETWORK_PATCHES", config->enableNetworkPatches);
     getString(ini, "Network", "ID_IP_SEAT_1", config->idIpSeat1, 16);
@@ -441,6 +455,7 @@ void applyIniConfig(EmulatorConfig *config, const IniConfig *ini)
     getString(ini, "Network", "2SPICY_IP_CAB1", config->tooSpicyIpCab1, 16);
     getString(ini, "Network", "2SPICY_IP_CAB2", config->tooSpicyIpCab2, 16);
     getString(ini, "Network", "SRTV_IPADDRESS", config->srtvIP, 16);
+    config->loopbackLink = getInt(ini, "Network", "LOOPBACK_LINK", config->loopbackLink);
 
     // [EVDEV]
     getString(ini, "EVDEV", "TEST_BUTTON", config->arcadeInputs.test, INPUT_STRING_LENGTH);

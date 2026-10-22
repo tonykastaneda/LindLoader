@@ -1,5 +1,7 @@
 #include <SDL3/SDL.h>
 #include <stdlib.h>
+#include <string.h>
+#include "../../../config/config.h"
 #include "../../../log/log.h"
 
 #define SND_PCM_STREAM_PLAYBACK 0
@@ -55,6 +57,27 @@ typedef struct _snd_pcm_sw_params snd_pcm_sw_params_t;
 
 static SDL_AudioDeviceID g_alsaDevice = 0;
 
+// The playback device named by AUDIO_DEVICE, or the system default.
+static SDL_AudioDeviceID configuredPlaybackDevice(void)
+{
+    const char *wanted = getConfig()->audioDevice;
+    SDL_AudioDeviceID found = SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK;
+    if (wanted[0] == '\0')
+        return found;
+    int count = 0;
+    SDL_AudioDeviceID *ids = SDL_GetAudioPlaybackDevices(&count);
+    for (int i = 0; ids && i < count; i++)
+    {
+        const char *name = SDL_GetAudioDeviceName(ids[i]);
+        if (name && strcmp(name, wanted) == 0)
+            found = ids[i];
+    }
+    SDL_free(ids);
+    if (found == SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK)
+        log_warn("ALSA: Audio device '%s' not found, using the default", wanted);
+    return found;
+}
+
 static void EnsureAudioInit()
 {
     if (!SDL_WasInit(SDL_INIT_AUDIO))
@@ -63,7 +86,7 @@ static void EnsureAudioInit()
     }
     if (g_alsaDevice == 0)
     {
-        g_alsaDevice = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, NULL);
+        g_alsaDevice = SDL_OpenAudioDevice(configuredPlaybackDevice(), NULL);
         if (g_alsaDevice == 0)
         {
             log_error("ALSA: Failed to open SDL audio device: %s", SDL_GetError());
@@ -71,6 +94,7 @@ static void EnsureAudioInit()
         else
         {
             log_info("ALSA: Opened SDL audio device ID %u", g_alsaDevice);
+            SDL_SetAudioDeviceGain(g_alsaDevice, getConfig()->audioVolume / 100.0f);
         }
     }
 }
