@@ -1,9 +1,11 @@
 #pragma once
 
+#include <QDateTime>
 #include <QList>
 #include <QObject>
 #include <QString>
 #include <QStringList>
+#include <QVariant>
 
 struct Game
 {
@@ -19,6 +21,7 @@ struct Game
     QString crc;
     bool clean = false;
     bool known = false;
+    qint64 size = 0;     // bytes in gameDir
 
     QString configDir;   // folder holding this game's linuxloader.ini and controls.ini
     QString configPath() const { return configDir + "/linuxloader.ini"; }
@@ -41,6 +44,41 @@ public:
     // Rescans every library folder (runs in the background, emits scanned()).
     void rescan();
 
+    // Lindy.ini values, e.g. "ui/view". Without a defaultValue, AppSettings has the default.
+    QVariant setting(const QString &key, const QVariant &defaultValue = {}) const;
+    void setSetting(const QString &key, const QVariant &value);
+    void removeSetting(const QString &key);
+
+    QString appDir() const { return m_appDir; }
+    QString coversDir() const;
+
+    // Before a game starts: writes Lindy's settings that the loader reads (audio, network, save and
+    // card folders, raw mouse input, crosshairs, hotkeys) into the game's linuxloader.ini and
+    // controls.ini, and links a split dump's data folder where the game looks for it.
+    bool applySettings(const Game &game, QString *error);
+    // Linked play on this PC: several cabinets of a linked game, one loader each (LOOPBACK_LINK).
+    // How many cabinets the game links, 0 if it can't.
+    static int linkCabinets(const Game &game);
+    // prepareLinkCabinet's controllerGuid for a cabinet played with the keyboard.
+    static inline const QString KeyboardController = QStringLiteral("keyboard");
+    // Settings for cabinet n (1-based): a copy of the game's with link play on, windowed, its own
+    // save data with its cabinet ID set, and player 1 on the n-th controller (or on controllerGuid, or the keyboard).
+    // Returns the folder holding its linuxloader.ini and controls.ini, or an empty string.
+    QString prepareLinkCabinet(const Game &game, int cabinet, const QString &controllerGuid, bool sound,
+                               QString *error);
+
+    // A player's (1 or 2) crosshair image: the chosen PNG, or Lindy's own, copied next to Lindy.exe.
+    QString crosshairPath(int player) const;
+    // The environment to start the loader with: the system's, plus SDL's input, audio and screensaver hints.
+    QStringList launchEnvironment() const;
+
+    // Per game, kept in Lindy.ini by game folder.
+    bool isFavorite(const Game &game) const;
+    void setFavorite(const Game &game, bool favorite);
+    qint64 playSeconds(const Game &game) const;
+    QDateTime lastPlayed(const Game &game) const;
+    void recordPlay(const Game &game, qint64 seconds);
+
     // Makes sure the game has a linuxloader.ini and controls.ini, creating defaults if needed.
     bool ensureConfig(const Game &game, QString *error);
 
@@ -57,6 +95,8 @@ signals:
 
 private:
     void saveFolders() const;
+    static QString gameKey(const Game &game);
+    static bool isExcluded(const Game &game, const QStringList &excluded);
     void extractImages(const QString &folder);
     QString findConfigDir(const QString &gameDir, const QString &libraryFolder, const QString &shortTitle) const;
 

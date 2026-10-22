@@ -19,6 +19,7 @@
 #include <QVBoxLayout>
 
 #include "ControllerSettingsWidget.h"
+#include "Theme.h"
 
 namespace
 {
@@ -69,10 +70,10 @@ GamePropertiesDialog::GamePropertiesDialog(const Game &game, GameLibrary &librar
     auto *categories = new QListWidget;
     categories->setFixedWidth(170);
     categories->setIconSize(QSize(20, 20));
-    categories->addItem(new QListWidgetItem(QIcon(":/icons/info.svg"), "Summary"));
-    categories->addItem(new QListWidgetItem(QIcon(":/icons/monitor.svg"), "Graphics"));
-    categories->addItem(new QListWidgetItem(QIcon(":/icons/settings.svg"), "Emulation"));
-    categories->addItem(new QListWidgetItem(QIcon(":/icons/gamepad.svg"), "Controls"));
+    categories->addItem(new QListWidgetItem(Theme::icon("info"), "Summary"));
+    categories->addItem(new QListWidgetItem(Theme::icon("monitor"), "Graphics"));
+    categories->addItem(new QListWidgetItem(Theme::icon("settings"), "Emulation"));
+    categories->addItem(new QListWidgetItem(Theme::icon("gamepad"), "Controls"));
 
     auto *pages = new QStackedWidget;
     pages->addWidget(buildSummaryPage());
@@ -120,7 +121,7 @@ QWidget *GamePropertiesDialog::buildSummaryPage()
     ff->addRow("Game folder:", readOnly(QDir::toNativeSeparators(m_game.gameDir)));
     ff->addRow("Settings:", readOnly(QDir::toNativeSeparators(m_game.configPath())));
     ff->addRow("Controls:", readOnly(QDir::toNativeSeparators(m_game.controlsPath())));
-    auto *open = new QPushButton(QIcon(":/icons/folder-open.svg"), "Open Game Folder");
+    auto *open = new QPushButton(Theme::icon("folder-open"), "Open Game Folder");
     connect(open, &QPushButton::clicked, this,
             [this] { QDesktopServices::openUrl(QUrl::fromLocalFile(m_game.gameDir)); });
     ff->addRow("", open);
@@ -158,6 +159,20 @@ QWidget *GamePropertiesDialog::buildGraphicsPage()
     form->addRow("Vertical Sync:", combo("VSYNC", "AUTO", {{"Auto (Recommended)", "AUTO"}, {"On", "1"}, {"Off", "0"}}));
     form->addRow(check("Start Fullscreen", "FULLSCREEN", false));
     form->addRow(check("Keep Aspect Ratio (black bars instead of stretching)", "KEEP_ASPECT_RATIO", true));
+    // The loader widens SEGA Race TV's 3D view to a wide resolution (the HUD stays 4:3). New in the loader's
+    // [Display], so it may not be in the file yet: written there by name.
+    if (m_game.gameId == "SBPF")
+    {
+        auto *wide = new QCheckBox("Widescreen (wider 3D view at a wide resolution such as 1920 x 1080)");
+        wide->setChecked(m_ini.value("Display", "WIDESCREEN", "false").toLower() == "true");
+        connect(wide, &QCheckBox::toggled, this, [this](bool on) {
+            if (m_loading)
+                return;
+            m_ini.setValue("Display", "WIDESCREEN", on ? "true" : "false");
+            m_ini.save();
+        });
+        form->addRow(wide);
+    }
     dl->addWidget(box);
 
     auto *frame = new QGroupBox("Frame Rate");

@@ -1,21 +1,57 @@
 #include "GameLibrary.h"
 
+#include <QCryptographicHash>
 #include <QDir>
+#include <QDirIterator>
+#include <QFile>
 #include <QFileInfo>
 #include <QFutureWatcher>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QProcess>
+#include <QRegularExpression>
 #include <QSettings>
 #include <QtConcurrent/QtConcurrentRun>
 
+#include "AppSettings.h"
+#include "Bindings.h"
 #include "ControlLayouts.h"
 #include "DiskImage.h"
 #include "IniFile.h"
 
 static QSettings uiSettings(const QString &appDir)
 {
-    return QSettings(appDir + "/LindLoader.ini", QSettings::IniFormat);
+    // The app used to be called LindLoader; keep its settings.
+    const QString path = appDir + "/Lindy.ini";
+    if (!QFileInfo::exists(path))
+        QFile::rename(appDir + "/LindLoader.ini", path);
+    return QSettings(path, QSettings::IniFormat);
+}
+
+// Games such as House of the Dead 4 read their data from ../fs. Dumps split by partition keep it in a
+// sibling folder named like the game's instead (hod4prog + hod4data): that folder, or an empty string.
+static QString splitDataFolder(const QString &gameDir)
+{
+    QDir parent(gameDir);
+    const QString name = QFileInfo(gameDir).fileName();
+    if (!parent.cdUp())
+        return {};
+    QStringList data;
+    for (const QString &d : parent.entryList({"*data"}, QDir::Dirs | QDir::NoDotAndDotDot))
+        if (d.size() > 4 && name.startsWith(d.chopped(4), Qt::CaseInsensitive))
+            data << d;
+    return data.size() == 1 ? parent.filePath(data.first()) : QString();
+}
+
+// A junction named fs lets the game find a split dump's data.
+static void linkDataFolder(const QString &gameDir)
+{
+    QDir parent(gameDir);
+    const QString data = splitDataFolder(gameDir);
+    if (data.isEmpty() || !parent.cdUp() || parent.exists("fs"))
+        return;
+    QProcess::execute("cmd", {"/c", "mklink", "/J", QDir::toNativeSeparators(parent.filePath("fs")),
+                              QDir::toNativeSeparators(data)});
 }
 
 GameLibrary::GameLibrary(const QString &appDir, QObject *parent) : QObject(parent), m_appDir(appDir)
@@ -50,9 +86,85 @@ void GameLibrary::saveFolders() const
     s.setValue("library/folders", m_folders);
 }
 
+QVariant GameLibrary::setting(const QString &key, const QVariant &defaultValue) const
+{
+    return uiSettings(m_appDir).value(key, defaultValue.isValid() ? defaultValue : AppSettings::defaultValue(key));
+}
+
+void GameLibrary::removeSetting(const QString &key)
+{
+    QSettings s = uiSettings(m_appDir);
+    s.remove(key);
+}
+
+QString GameLibrary::coversDir() const
+{
+    const QString dir = setting("folders/covers").toString();
+    return dir.isEmpty() ? m_appDir + "/covers" : dir;
+}
+
+void GameLibrary::setSetting(const QString &key, const QVariant &value)
+{
+    QSettings s = uiSettings(m_appDir);
+    s.setValue(key, value);
+}
+
+// Settings > Game List > Excluded Paths: a folder excludes the games below it, a file the game it is.
+bool GameLibrary::isExcluded(const Game &game, const QStringList &excluded)
+{
+    const QString dir = QDir::cleanPath(game.gameDir);
+    const QString elf = QDir::cleanPath(QDir(dir).absoluteFilePath(game.elf));
+    for (const QString &e : excluded)
+    {
+        const QString path = QDir::cleanPath(e);
+        if (path.compare(elf, Qt::CaseInsensitive) == 0 || path.compare(dir, Qt::CaseInsensitive) == 0 ||
+            dir.startsWith(path + "/", Qt::CaseInsensitive))
+            return true;
+    }
+    return false;
+}
+
+// A short id for the game's folder: paths can't be INI keys.
+QString GameLibrary::gameKey(const Game &game)
+{
+    const QByteArray dir = QDir::cleanPath(game.gameDir).toLower().toUtf8();
+    return QString::fromLatin1(QCryptographicHash::hash(dir, QCryptographicHash::Sha1).toHex().left(16));
+}
+
+bool GameLibrary::isFavorite(const Game &game) const
+{
+    return setting("favorites/list").toStringList().contains(gameKey(game));
+}
+
+void GameLibrary::setFavorite(const Game &game, bool favorite)
+{
+    QStringList list = setting("favorites/list").toStringList();
+    list.removeAll(gameKey(game));
+    if (favorite)
+        list << gameKey(game);
+    setSetting("favorites/list", list);
+}
+
+qint64 GameLibrary::playSeconds(const Game &game) const
+{
+    return setting("played/" + gameKey(game) + "_seconds").toLongLong();
+}
+
+QDateTime GameLibrary::lastPlayed(const Game &game) const
+{
+    return setting("played/" + gameKey(game) + "_last").toDateTime();
+}
+
+void GameLibrary::recordPlay(const Game &game, qint64 seconds)
+{
+    const QString key = "played/" + gameKey(game);
+    setSetting(key + "_seconds", playSeconds(game) + seconds);
+    setSetting(key + "_last", QDateTime::currentDateTime());
+}
+
 // A game keeps its settings next to it when its folder already has a linuxloader.ini (a
 // self-contained game folder: <folder>/linuxloader.ini with the game below it). Otherwise they
-// live in LindLoader's own config/<game> folder.
+// live in Lindy's own config/<game> folder.
 QString GameLibrary::findConfigDir(const QString &gameDir, const QString &libraryFolder, const QString &shortTitle) const
 {
     QDir dir(gameDir);
@@ -70,6 +182,7 @@ QString GameLibrary::findConfigDir(const QString &gameDir, const QString &librar
 void GameLibrary::rescan()
 {
     const QStringList folders = m_folders;
+    const QStringList excluded = setting("library/excluded").toStringList();
     const QString loader = loaderPath();
     auto *watcher = new QFutureWatcher<QList<Game>>(this);
     connect(watcher, &QFutureWatcher<QList<Game>>::finished, this, [this, watcher] {
@@ -79,7 +192,7 @@ void GameLibrary::rescan()
         watcher->deleteLater();
         emit scanned();
     });
-    watcher->setFuture(QtConcurrent::run([this, folders, loader] {
+    watcher->setFuture(QtConcurrent::run([this, folders, excluded, loader] {
         QList<Game> found;
         for (const QString &folder : folders)
             extractImages(folder);
@@ -109,6 +222,12 @@ void GameLibrary::rescan()
                 g.resolutions = o["resolutions"].toString();
                 g.type = o["type"].toString();
                 g.configDir = findConfigDir(g.gameDir, folder, g.shortTitle);
+                if (isExcluded(g, excluded))
+                    continue;
+                for (const QString &dir : {g.gameDir, splitDataFolder(g.gameDir)})
+                    for (QDirIterator it(dir, QDir::Files | QDir::Hidden, QDirIterator::Subdirectories);
+                         !dir.isEmpty() && it.hasNext();)
+                        g.size += it.nextFileInfo().size();
                 found << g;
             }
         }
@@ -292,4 +411,259 @@ void GameLibrary::applyStarterControls(const QString &type, const QString &path)
         return;
     ControlLayouts::applyStarterBindings(ini, type);
     ini.save();
+}
+
+
+bool GameLibrary::applySettings(const Game &game, QString *error)
+{
+    if (!ensureConfig(game, error))
+        return false;
+    linkDataFolder(game.gameDir);
+    auto quoted = [](const QString &value) { return "\"" + value + "\""; };
+
+    IniFile config;
+    if (!config.load(game.configPath()))
+    {
+        if (error)
+            *error = "Could not read " + QDir::toNativeSeparators(game.configPath());
+        return false;
+    }
+
+    // Settings > Audio
+    config.setValue("Audio", "AUDIO_DEVICE", quoted(setting("audio/device").toString()));
+    config.setValue("Audio", "AUDIO_VOLUME",
+                    QString::number(setting("audio/mute").toBool() ? 0 : setting("audio/volume").toInt()));
+
+    // Controller Settings > Raw Input: one gun per mouse
+    config.setValue("Input", "RAW_MOUSE_INPUT", setting("input/rawMice").toBool() ? "true" : "false");
+
+    // Settings > Network
+    const bool network = setting("network/enabled").toBool();
+    config.setValue("Network", "ENABLE_NETWORK_PATCHES", network ? "true" : "false");
+    if (network)
+    {
+        const struct
+        {
+            const char *iniKey, *setting;
+        } addresses[] = {{"OR2_IPADDRESS", "or2Ip"}, {"OR2_NETMASK", "or2Netmask"}, {"ID_IP_SEAT_1", "idSeat1"},
+                         {"ID_IP_SEAT_2", "idSeat2"},  {"IP_CAB1", "cab1"},          {"IP_CAB2", "cab2"},
+                         {"IP_CAB3", "cab3"},          {"IP_CAB4", "cab4"},          {"2SPICY_IP_CAB1", "spicy1"},
+                         {"2SPICY_IP_CAB2", "spicy2"}, {"SRTV_IPADDRESS", "srtvIp"}};
+        for (const auto &a : addresses)
+            config.setValue("Network", a.iniKey, quoted(setting(QString("network/") + a.setting).toString()));
+    }
+
+    // Settings > Folders: save data and card files, in a folder per game or (by default) the game's own.
+    // Moving to a folder takes the game's existing files along the first time.
+    auto place = [&](const QString &folderSetting, const QString &section, const QString &key, const QString &file) {
+        const QString folder = setting(folderSetting).toString();
+        if (folder.isEmpty())
+            return config.setValue(section, key, quoted(file));
+        const QString dir = QDir::cleanPath(folder + "/" + game.shortTitle);
+        QDir().mkpath(dir);
+        if (!file.isEmpty())
+        {
+            const QString target = dir + "/" + file;
+            const QString old = QDir(game.gameDir).filePath(file);
+            if (!QFileInfo::exists(target) && QFileInfo::exists(old))
+                QFile::copy(old, target);
+            config.setValue(section, key, quoted(target));
+        }
+        else
+        {
+            config.setValue(section, key, quoted(dir));
+        }
+    };
+    place("folders/saves", "Paths", "SRAM_PATH", "sram.bin");
+    place("folders/saves", "Paths", "EEPROM_PATH", "eeprom.bin");
+    place("folders/cards", "Cards", "CARDFILE_01", "Card_01.crd");
+    place("folders/cards", "Cards", "CARDFILE_02", "Card_02.crd");
+    if (!setting("folders/cards").toString().isEmpty())
+        place("folders/cards", "Cards", "ID_CARDFOLDER", QString());
+    else
+        config.setValue("Cards", "ID_CARDFOLDER", quoted(QString()));
+
+    // Controller Settings > Crosshairs (the loader draws them in HOTD4, Rambo, Ghost Squad Evolution and Primeval Hunt)
+    config.setValue("CrossHairs", "ENABLE_CROSSHAIRS", setting("crosshairs/enabled").toBool() ? "true" : "false");
+    config.setValue("CrossHairs", "P1_CROSSHAIR_PATH", quoted(crosshairPath(1)));
+    config.setValue("CrossHairs", "P2_CROSSHAIR_PATH", quoted(crosshairPath(2)));
+    const QString size = QString::number(setting("crosshairs/size").toInt());
+    config.setValue("CrossHairs", "CUSTOM_CROSSHAIRS_WIDTH", size);
+    config.setValue("CrossHairs", "CUSTOM_CROSSHAIRS_HEIGHT", size);
+
+    // Controller Settings > Hotkeys
+    IniFile controls;
+    if (!config.save() || !controls.load(game.controlsPath()))
+    {
+        if (error)
+            *error = "Could not update the settings in " + QDir::toNativeSeparators(game.configDir);
+        return false;
+    }
+    for (const AppSettings::Hotkey &h : AppSettings::hotkeys())
+        controls.setValue("Common", h.key, setting(QString("hotkeys/") + h.key).toString());
+    if (!controls.save())
+    {
+        if (error)
+            *error = "Could not save " + QDir::toNativeSeparators(game.controlsPath());
+        return false;
+    }
+    return true;
+}
+
+QString GameLibrary::crosshairPath(int player) const
+{
+    const QString chosen = setting(QStringLiteral("crosshairs/p%1").arg(player)).toString();
+    if (!chosen.isEmpty())
+        return QDir::cleanPath(chosen);
+    // The loader reads files, not Lindy's resources: keep a copy of the default.
+    const QString path = QStringLiteral("%1/crosshairs/p%2.png").arg(m_appDir).arg(player);
+    if (!QFileInfo::exists(path))
+    {
+        QDir().mkpath(m_appDir + "/crosshairs");
+        QFile::copy(QStringLiteral(":/icons/crosshair-p%1.png").arg(player), path);
+        QFile(path).setPermissions(QFile::ReadOwner | QFile::WriteOwner | QFile::ReadUser | QFile::WriteUser);
+    }
+    return path;
+}
+
+QStringList GameLibrary::launchEnvironment() const
+{
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    auto flag = [&](const char *hint, const char *settingKey) { env.insert(hint, setting(settingKey).toBool() ? "1" : "0"); };
+    // Controller Settings > Global Settings (SDL hints, read by the loader's SDL at start)
+    flag("SDL_JOYSTICK_RAWINPUT", "input/sdlRawInput");
+    flag("SDL_JOYSTICK_ENHANCED_REPORTS", "input/enhancedMode");
+    flag("SDL_JOYSTICK_HIDAPI", "input/hidapi");
+    flag("SDL_XINPUT_ENABLED", "input/xinput");
+    flag("SDL_JOYSTICK_DIRECTINPUT", "input/directinput");
+    // Settings > Interface: games keep the screensaver off unless it's allowed
+    env.insert("SDL_VIDEO_ALLOW_SCREENSAVER", setting("interface/inhibitScreensaver").toBool() ? "0" : "1");
+    // Settings > Audio
+    if (const QString driver = setting("audio/driver").toString(); !driver.isEmpty())
+        env.insert("SDL_AUDIO_DRIVER", driver);
+    if (const int ms = setting("audio/bufferMs").toInt(); ms > 0)
+        env.insert("SDL_AUDIO_DEVICE_SAMPLE_FRAMES", QString::number(ms * 48)); // at 48 kHz
+    return env.toStringList();
+}
+
+int GameLibrary::linkCabinets(const Game &game)
+{
+    // Sega Race TV: up to four cabinets (1 Main, 2-4 Sub).
+    return game.gameId == "SBPF" ? 4 : 0;
+}
+
+// Sega Race TV keeps its cabinet ID (0 Main, 1-3 Sub, 4 stand-alone) in two copies of a 72-byte
+// EEPROM record, each starting with a CRC32 (without the final inversion) of the 68 bytes after it.
+static bool setSrtvCabinet(const QString &eeprom, int id)
+{
+    QFile f(eeprom);
+    if (!f.open(QIODevice::ReadWrite))
+        return false;
+    QByteArray data = f.readAll();
+    static quint32 table[256];
+    if (!table[1])
+        for (quint32 i = 0; i < 256; ++i)
+        {
+            quint32 c = i;
+            for (int k = 0; k < 8; ++k)
+                c = c & 1 ? 0xEDB88320u ^ (c >> 1) : c >> 1;
+            table[i] = c;
+        }
+    for (int base : {0x1140, 0x11C0})
+    {
+        if (data.size() < base + 72 || !data.mid(base + 4, 4).startsWith("R_TV"))
+            return false;
+        data[base + 0x18] = char(id);
+        quint32 crc = 0xFFFFFFFFu;
+        for (int i = base + 4; i < base + 72; ++i)
+            crc = table[(crc ^ quint8(data[i])) & 0xFF] ^ (crc >> 8);
+        for (int b = 0; b < 4; ++b)
+            data[base + b] = char(crc >> (8 * b));
+    }
+    f.seek(0);
+    return f.write(data) == data.size();
+}
+
+QString GameLibrary::prepareLinkCabinet(const Game &game, int cabinet, const QString &controllerGuid, bool sound,
+                                        QString *error)
+{
+    auto fail = [error](const QString &message) {
+        if (error)
+            *error = message;
+        return QString();
+    };
+    const QString dir = QStringLiteral("%1/config/%2-cabinet%3").arg(m_appDir, game.shortTitle).arg(cabinet);
+    QDir().mkpath(dir);
+    const QString config = dir + "/linuxloader.ini", controls = dir + "/controls.ini";
+    QFile::remove(config);
+    QFile::remove(controls);
+    if (!QFile::copy(game.configPath(), config) || !QFile::copy(game.controlsPath(), controls))
+        return fail("Could not copy the settings of " + game.title);
+
+    IniFile ini;
+    ini.load(config);
+    // Where the game's own save data is: its EEPROM is the starting point of every cabinet's.
+    QString eeprom = ini.value("Paths", "EEPROM_PATH", "eeprom.bin").remove('"');
+    if (QFileInfo(eeprom).isRelative())
+        eeprom = QDir(game.gameDir).filePath(eeprom);
+    auto quoted = [](const QString &v) { return "\"" + v + "\""; };
+    ini.setValue("Network", "ENABLE_NETWORK_PATCHES", "true");
+    ini.setValue("Network", "LOOPBACK_LINK", "true");
+    ini.setValue("Network", "SRTV_IPADDRESS", quoted(QString()));
+    ini.setValue("Display", "FULLSCREEN", "false");
+    ini.setValue("Paths", "SRAM_PATH", quoted(dir + "/sram.bin"));
+    ini.setValue("Paths", "EEPROM_PATH", quoted(dir + "/eeprom.bin"));
+    if (!sound)
+        ini.setValue("Audio", "AUDIO_VOLUME", "0");
+    if (!ini.save())
+        return fail("Could not save " + QDir::toNativeSeparators(config));
+
+    // The cabinet's own save data, its cabinet ID set (cabinet 1 is the Main one).
+    const QString cabEeprom = dir + "/eeprom.bin";
+    if (!QFileInfo::exists(cabEeprom) && !QFile::copy(eeprom, cabEeprom))
+        return fail(game.title + " has no save data yet. Play it once on its own first, so it sets it up.");
+    QFile(cabEeprom).setPermissions(QFile::ReadOwner | QFile::WriteOwner | QFile::ReadUser | QFile::WriteUser);
+    if (!setSrtvCabinet(cabEeprom, cabinet - 1))
+        return fail("Could not set the cabinet ID in " + QDir::toNativeSeparators(cabEeprom));
+
+    // Player 1 of cabinet n plays with player slot n's controller: swap the GC0/JOY0 bindings with GCn-1/JOYn-1.
+    IniFile pads;
+    pads.load(controls);
+    const QString a = "#0_", b = QStringLiteral("#%1_").arg(cabinet - 1);
+    for (const QString &section : {"Common", "Digital", "Driving", "Shooting", "Flying", "Mahjong", "Config"})
+        for (const QString &key : cabinet > 1 ? pads.keys(section) : QStringList())
+        {
+            QString v = pads.value(section, key, QString());
+            for (const char *kind : {"GC", "JOY"})
+            {
+                const QString from = QString(a).replace('#', kind), to = QString(b).replace('#', kind);
+                v.replace(from, "@@").replace(to, from).replace("@@", to);
+            }
+            pads.setValue(section, key, v);
+        }
+    // The keyboard plays only the keyboard cabinet (the one whose window has the focus), controllers only the
+    // others; the hotkeys stay everywhere.
+    const bool keyboard = controllerGuid == KeyboardController;
+    static const QRegularExpression controller("\\b(GC|JOY)\\d"), key("\\bKEY_");
+    QStringList hotkeys;
+    for (const AppSettings::Hotkey &h : AppSettings::hotkeys())
+        hotkeys << h.key;
+    for (const QString &section : {"Common", "Digital", "Driving", "Shooting", "Flying", "Mahjong"})
+        for (const QString &k : pads.keys(section))
+        {
+            if (hotkeys.contains(k))
+                continue;
+            QStringList kept;
+            for (const QString &b : Bindings::split(pads.value(section, k, QString())))
+                if (!b.contains(keyboard ? controller : key))
+                    kept << b;
+            pads.setValue(section, k, kept.join(", "));
+        }
+    for (int p = 1; p <= 4; ++p)
+        pads.removeValue("ControllerGUIDs", QStringLiteral("P%1_GUID").arg(p));
+    if (!controllerGuid.isEmpty() && !keyboard)
+        pads.setValue("ControllerGUIDs", QStringLiteral("P%1_GUID").arg(cabinet), controllerGuid);
+    if (!pads.save())
+        return fail("Could not save " + QDir::toNativeSeparators(controls));
+    return dir;
 }

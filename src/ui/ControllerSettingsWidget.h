@@ -27,6 +27,8 @@ private:
     void refresh();
     void refreshControllers();
     void selectController(int player, int index);
+    void refreshMice();
+    void selectMouse(int player, const QString &path);
     void automap(int player);
     void bind(BindingButton *button, const QString &binding, const QString &guid);
     void clear(BindingButton *button);
@@ -39,5 +41,7 @@ private:
     IniFile m_ini;
     const ControlLayouts::Layout *m_layout; // null for games without a controls page (mahjong/quiz)
     QList<QComboBox *> m_controllers;       // per player
+    QList<QComboBox *> m_mice;              // per player, lightgun games
+    bool m_refreshingMice = false;
     QList<BindingButton *> m_buttons;
 };

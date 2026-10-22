@@ -1,5 +1,8 @@
 <RCC>
     <qresource prefix="/">
+        <file>icons/lindy.png</file>
+        <file>icons/crosshair-p1.png</file>
+        <file>icons/crosshair-p2.png</file>
         <file>icons/play.svg</file>
         <file>icons/folder-add.svg</file>
         <file>icons/folder-open.svg</file>
@@ -8,5 +11,19 @@
         <file>icons/gamepad.svg</file>
         <file>icons/monitor.svg</file>
         <file>icons/info.svg</file>
+        <file>icons/list.svg</file>
+        <file>icons/grid.svg</file>
+        <file>icons/tag.svg</file>
+        <file>icons/star.svg</file>
+        <file>icons/star-filled.svg</file>
+        <file>icons/filter.svg</file>
+        <file>icons/search.svg</file>
+        <file>icons/sliders.svg</file>
+        <file>icons/speaker.svg</file>
+        <file>icons/globe.svg</file>
+        <file>icons/keyboard.svg</file>
+        <file>icons/trash.svg</file>
+        <file>icons/crosshair.svg</file>
+        <file>icons/reset.svg</file>
     </qresource>
 </RCC>

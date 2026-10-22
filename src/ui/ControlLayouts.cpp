@@ -176,7 +176,7 @@ Group systemButtons(const Layout &layout)
         g.rows << Row{"Card", b("P1_Card1Insert", "Digital"), b("P2_Card2Insert", "Digital")};
     else if (layout.name == "Racing")
         g.rows << p1("Card", "CardInsert", "Driving");
-    g.rows << p1("Test", "Test", c) << p1("Exit Game", "ExitGame", c);
+    // Test and Exit Game are hotkeys: Controller Settings > Hotkeys, the same for every game.
     return g;
 }
 

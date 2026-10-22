@@ -27,7 +27,7 @@ Gamepads &Gamepads::instance()
 
 Gamepads::Gamepads(QObject *parent) : QObject(parent)
 {
-    // LindLoader's window has the focus, not an SDL window, so SDL has to deliver background events.
+    // Lindy's window has the focus, not an SDL window, so SDL has to deliver background events.
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
     m_ok = SDL_Init(SDL_INIT_GAMEPAD);
     if (!m_ok)

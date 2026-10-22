@@ -15,6 +15,8 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPushButton>
+#include <QRegularExpression>
+#include <QScopedValueRollback>
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QTemporaryDir>
@@ -25,8 +27,11 @@
 
 #include <functional>
 
+#include "BindingButton.h"
 #include "Bindings.h"
 #include "Gamepads.h"
+#include "RawMice.h"
+#include "Theme.h"
 
 using ControlLayouts::Binding;
 using ControlLayouts::Group;
@@ -35,136 +40,8 @@ using ControlLayouts::Layout;
 namespace
 {
 const int kMaxPlayers = 4;
-const int kCaptureSeconds = 5;
 const int kAxisMax = 32767;
 } // namespace
-
-// One binding: shows what the action is bound to; click to bind, right-click to clear.
-class BindingButton : public QPushButton
-{
-public:
-    BindingButton(const Binding &binding, int player, QWidget *parent = nullptr)
-        : QPushButton(parent), binding(binding), player(player)
-    {
-        setMinimumWidth(150);
-        setMinimumHeight(28);
-        connect(this, &QPushButton::clicked, this, &BindingButton::startCapture);
-        m_countdown.setInterval(1000);
-        connect(&m_countdown, &QTimer::timeout, this, [this] {
-            if (--m_seconds <= 0)
-                stopCapture();
-            else
-                showPrompt();
-        });
-    }
-    ~BindingButton() override { stopCapture(); }
-
-    void setBindings(const QString &value)
-    {
-        QStringList names;
-        for (const QString &b : Bindings::split(value))
-            names << Bindings::displayName(b);
-        m_text = names.isEmpty() ? QStringLiteral("-") : names.join(", ");
-        setToolTip(names.isEmpty() ? QStringLiteral("Not bound") : names.join("\n"));
-        if (!m_capturing)
-            showText();
-    }
-
-    const Binding binding;
-    const int player; // 1 or 2
-    std::function<void(BindingButton *, const QString &, const QString &)> bound;
-    std::function<void(BindingButton *)> cleared;
-
-protected:
-    bool event(QEvent *e) override
-    {
-        if (m_capturing && (e->type() == QEvent::KeyPress || e->type() == QEvent::ShortcutOverride))
-        {
-            auto *key = static_cast<QKeyEvent *>(e);
-            if (e->type() == QEvent::KeyPress && !key->isAutoRepeat() && !binding.analog)
-            {
-                const QString b = Bindings::fromKeyEvent(key);
-                if (!b.isEmpty())
-                {
-                    stopCapture();
-                    bound(this, b, QString());
-                }
-            }
-            e->accept();
-            return true;
-        }
-        return QPushButton::event(e);
-    }
-
-    void mousePressEvent(QMouseEvent *e) override
-    {
-        if (e->button() == Qt::RightButton)
-        {
-            stopCapture();
-            cleared(this);
-            return;
-        }
-        if (m_capturing)
-            return; // a second click doesn't restart the countdown
-        QPushButton::mousePressEvent(e);
-    }
-
-    void resizeEvent(QResizeEvent *e) override
-    {
-        QPushButton::resizeEvent(e);
-        if (!m_capturing)
-            showText();
-    }
-
-private:
-    void showText() { setText(fontMetrics().elidedText(m_text, Qt::ElideRight, width() - 16)); }
-
-    void showPrompt()
-    {
-        setText(QStringLiteral("%1... %2").arg(binding.analog ? "Move a stick or trigger" : "Press a key or button").arg(m_seconds));
-    }
-
-    void startCapture()
-    {
-        if (s_active && s_active != this)
-            s_active->stopCapture();
-        s_active = this;
-        m_capturing = true;
-        m_seconds = kCaptureSeconds;
-        showPrompt();
-        setDown(true);
-        grabKeyboard();
-        m_countdown.start();
-        m_connection = connect(&Gamepads::instance(), &Gamepads::captured, this,
-                               [this](const QString &b, const QString &guid) {
-                                   stopCapture();
-                                   bound(this, b, guid);
-                               });
-        Gamepads::instance().startCapture(binding.analog);
-    }
-
-    void stopCapture()
-    {
-        if (!m_capturing)
-            return;
-        m_capturing = false;
-        if (s_active == this)
-            s_active = nullptr;
-        Gamepads::instance().stopCapture();
-        disconnect(m_connection);
-        m_countdown.stop();
-        releaseKeyboard();
-        setDown(false);
-        showText();
-    }
-
-    static inline BindingButton *s_active = nullptr;
-    QString m_text;
-    bool m_capturing = false;
-    int m_seconds = 0;
-    QTimer m_countdown;
-    QMetaObject::Connection m_connection;
-};
 
 ControllerSettingsWidget::ControllerSettingsWidget(const Game &game, GameLibrary &library, QWidget *parent)
     : QWidget(parent), m_game(game), m_library(library), m_layout(ControlLayouts::forType(game.type))
@@ -193,11 +70,11 @@ ControllerSettingsWidget::ControllerSettingsWidget(const Game &game, GameLibrary
     const struct
     {
         const char *icon, *text;
-    } tabs[] = {{":/icons/gamepad.svg", "Bindings"}, {":/icons/settings.svg", "Settings"}};
+    } tabs[] = {{"gamepad", "Bindings"}, {"settings", "Settings"}};
     for (int i = 0; i < 2; ++i)
     {
         auto *tab = new QToolButton;
-        tab->setIcon(QIcon(tabs[i].icon));
+        tab->setIcon(Theme::icon(tabs[i].icon));
         tab->setText(tabs[i].text);
         tab->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         tab->setCheckable(true);
@@ -232,6 +109,7 @@ ControllerSettingsWidget::ControllerSettingsWidget(const Game &game, GameLibrary
     connect(&Gamepads::instance(), &Gamepads::devicesChanged, this, &ControllerSettingsWidget::refreshControllers);
     refresh();
     refreshControllers();
+    refreshMice();
 }
 
 QWidget *ControllerSettingsWidget::buildBindingsPage()
@@ -257,6 +135,40 @@ QWidget *ControllerSettingsWidget::buildBindingsPage()
         m_controllers << combo;
     }
     l->addWidget(devices);
+
+    // Lightgun games: each player can aim with their own mouse (Controller Settings > Lightgun).
+    if (m_layout->name == "Lightgun")
+    {
+        auto *mice = new QGroupBox("Mice");
+        auto *mg = new QGridLayout(mice);
+        mg->setColumnStretch(1, 1);
+        for (int p = 1; p <= 2; ++p)
+        {
+            auto *combo = new QComboBox;
+            // Any change, by mouse, keyboard or accessibility tools; refreshMice() fills the list quietly.
+            connect(combo, &QComboBox::currentIndexChanged, this, [this, p, combo](int index) {
+                if (!m_refreshingMice && index >= 0)
+                    selectMouse(p, combo->itemData(index).toString());
+            });
+            auto *identify = new QPushButton("Identify...");
+            identify->setToolTip("Click a button on this player's mouse to pick it");
+            connect(identify, &QPushButton::clicked, this, [this, p] {
+                MouseIdentifyDialog dialog(QStringLiteral("Click a button on <b>Player %1</b>'s mouse.").arg(p), this);
+                if (dialog.exec() == QDialog::Accepted)
+                    selectMouse(p, dialog.path());
+            });
+            mg->addWidget(new QLabel(QStringLiteral("Player %1:").arg(p)), p - 1, 0);
+            mg->addWidget(combo, p - 1, 1);
+            mg->addWidget(identify, p - 1, 2);
+            m_mice << combo;
+        }
+        auto *note = new QLabel("Picking a player's own mouse turns on <b>Raw Input</b> (Controller Settings > Lightgun). "
+                                "\"Any mouse\" moves the Windows pointer, shared by every mouse.");
+        note->setWordWrap(true);
+        note->setStyleSheet("color: palette(placeholder-text);");
+        mg->addWidget(note, 2, 0, 1, 3);
+        l->addWidget(mice);
+    }
 
     // System Buttons on the left, the layout's groups on the right; any further groups go left.
     auto *columns = new QHBoxLayout;
@@ -391,6 +303,84 @@ void ControllerSettingsWidget::selectController(int player, int index)
     save();
 }
 
+void ControllerSettingsWidget::refreshMice()
+{
+    const QList<RawMice::Mouse> mice = RawMice::list();
+    const QScopedValueRollback<bool> quiet(m_refreshingMice, true);
+    for (int p = 1; p <= m_mice.size(); ++p)
+    {
+        QComboBox *combo = m_mice[p - 1];
+        const QString saved = m_ini.value("MouseDevices", QStringLiteral("MOUSE%1").arg(p), QString()).remove('"');
+        combo->clear();
+        combo->addItem("Any mouse", QString());
+        bool found = false;
+        for (int i = 0; i < mice.size(); ++i)
+        {
+            // Two of the same mouse get numbered.
+            int same = 0;
+            for (const RawMice::Mouse &m : mice)
+                same += m.name == mice[i].name;
+            combo->addItem(same > 1 ? QStringLiteral("%1 (%2)").arg(mice[i].name).arg(i + 1) : mice[i].name, mice[i].path);
+            found |= mice[i].path.compare(saved, Qt::CaseInsensitive) == 0;
+        }
+        if (!saved.isEmpty() && !found)
+            combo->addItem("Saved mouse (not connected)", saved);
+        int index = 0;
+        for (int i = 1; i < combo->count(); ++i)
+            if (combo->itemData(i).toString().compare(saved, Qt::CaseInsensitive) == 0)
+                index = i;
+        combo->setCurrentIndex(index);
+    }
+}
+
+// Ties a player's mouse bindings to their own mouse (MOUSEn_, n = player) or back to any mouse (MOUSE_).
+void ControllerSettingsWidget::selectMouse(int player, const QString &path)
+{
+    const QString key = QStringLiteral("MOUSE%1").arg(player);
+    const QString prefix = path.isEmpty() ? QStringLiteral("MOUSE_") : QStringLiteral("MOUSE%1_").arg(player);
+    if (path.isEmpty())
+        m_ini.removeValue("MouseDevices", key);
+    else
+        m_ini.setValue("MouseDevices", key, "\"" + path + "\"");
+    // A player's own mouse only works with raw input: turn it on rather than leave the choice dead.
+    if (!path.isEmpty() && !m_library.setting("input/rawMice").toBool())
+        m_library.setSetting("input/rawMice", true);
+
+    static const QRegularExpression anyMouse("^MOUSE\\d?_");
+    bool hasMouse = false;
+    for (const Group &g : m_layout->groups)
+        for (const ControlLayouts::Row &r : g.rows)
+        {
+            const Binding &b = player == 1 ? r.p1 : r.p2;
+            if (b.key.isEmpty())
+                continue;
+            QStringList parts = Bindings::split(m_ini.value(b.section, b.key, QString()));
+            for (QString &part : parts)
+                if (part.contains(anyMouse))
+                {
+                    part.replace(anyMouse, prefix);
+                    hasMouse = true;
+                }
+            m_ini.setValue(b.section, b.key, parts.join(", "));
+        }
+
+    // A player without mouse bindings yet gets the loader's usual ones (as player 1 has by default).
+    if (!path.isEmpty() && !hasMouse)
+    {
+        const QString s = "Shooting", p = QString::number(player);
+        const QPair<QString, QString> standard[] = {{"P" + p + "_GunX", "AXIS_X"},
+                                                    {"P" + p + "_GunY", "AXIS_Y"},
+                                                    {"P" + p + "_Trigger", "LEFT_BUTTON"},
+                                                    {"P" + p + "_Reload", "RIGHT_BUTTON"},
+                                                    {"P" + p + "_GunButton", "MIDDLE_BUTTON"}};
+        for (const auto &[k, control] : standard)
+            m_ini.setValue(s, k, Bindings::replace(m_ini.value(s, k, QString()), prefix + control, player - 1));
+    }
+    save();
+    refresh();
+    refreshMice();
+}
+
 void ControllerSettingsWidget::automap(int player)
 {
     ControlLayouts::automap(m_ini, *m_layout, player);
@@ -401,7 +391,12 @@ void ControllerSettingsWidget::automap(int player)
 void ControllerSettingsWidget::bind(BindingButton *button, const QString &binding, const QString &guid)
 {
     const Binding &b = button->binding;
-    m_ini.setValue(b.section, b.key, Bindings::replace(m_ini.value(b.section, b.key, QString()), binding, button->player - 1));
+    // A mouse button of a player who has their own mouse is that mouse's button.
+    QString added = binding;
+    if (added.startsWith("MOUSE_") &&
+        !m_ini.value("MouseDevices", QStringLiteral("MOUSE%1").arg(button->player), QString()).isEmpty())
+        added.replace(0, 6, QStringLiteral("MOUSE%1_").arg(button->player));
+    m_ini.setValue(b.section, b.key, Bindings::replace(m_ini.value(b.section, b.key, QString()), added, button->player - 1));
 
     // Binding with a controller makes it this player's controller, unless another player has it.
     if (!guid.isEmpty())
@@ -449,7 +444,7 @@ void ControllerSettingsWidget::copyFrom()
     QFile::remove(m_game.controlsPath());
     if (!QFile::copy(from, m_game.controlsPath()))
     {
-        QMessageBox::warning(this, "LindLoader", "Could not copy the controls.");
+        QMessageBox::warning(this, "Lindy", "Could not copy the controls.");
         return;
     }
     m_ini.load(m_game.controlsPath());
@@ -465,7 +460,7 @@ void ControllerSettingsWidget::resetToDefaults()
     QTemporaryDir dir;
     if (!dir.isValid() || !m_library.createDefaults("controls", dir.path(), "controls.ini"))
     {
-        QMessageBox::warning(this, "LindLoader", "Could not create the default controls.");
+        QMessageBox::warning(this, "Lindy", "Could not create the default controls.");
         return;
     }
     m_library.applyStarterControls(m_game.type, dir.path() + "/controls.ini");
@@ -479,5 +474,5 @@ void ControllerSettingsWidget::resetToDefaults()
 void ControllerSettingsWidget::save()
 {
     if (!m_ini.save())
-        QMessageBox::warning(this, "LindLoader", "Could not save " + QDir::toNativeSeparators(m_ini.path()));
+        QMessageBox::warning(this, "Lindy", "Could not save " + QDir::toNativeSeparators(m_ini.path()));
 }

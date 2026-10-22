@@ -116,14 +116,25 @@ QString singleName(const QString &b)
 {
     if (b.startsWith("KEY_"))
         return b.mid(4);
-    if (b == "MOUSE_LEFT_BUTTON")
-        return "Mouse Left";
-    if (b == "MOUSE_RIGHT_BUTTON")
-        return "Mouse Right";
-    if (b == "MOUSE_MIDDLE_BUTTON")
-        return "Mouse Middle";
-    if (b.startsWith("MOUSE_AXIS_"))
-        return "Mouse " + b.mid(11);
+    // MOUSE_ is any mouse, MOUSEn_ player n's own mouse (raw mouse input).
+    static const QRegularExpression mouse("^MOUSE(\\d?)_(.+)$");
+    if (const auto m = mouse.match(b); m.hasMatch())
+    {
+        QString what = m.captured(2);
+        if (what.endsWith("_BUTTON"))
+            what = what.chopped(7).toLower();
+        else if (what == "BUTTON_4")
+            what = "Back";
+        else if (what == "BUTTON_5")
+            what = "Forward";
+        else if (what.startsWith("BUTTON_"))
+            what = "Button " + what.mid(7);
+        else if (what.startsWith("AXIS_"))
+            what = what.mid(5);
+        if (!what.isEmpty())
+            what[0] = what[0].toUpper();
+        return (m.captured(1).isEmpty() ? "Mouse " : "Mouse " + m.captured(1) + " ") + what;
+    }
 
     static const QRegularExpression gc("^GC\\d+_(BUTTON|AXIS)_(.+)$");
     if (const auto m = gc.match(b); m.hasMatch())
@@ -155,7 +166,7 @@ Kind kindOf(const QString &binding)
 {
     if (binding.startsWith("KEY_"))
         return Kind::Keyboard;
-    if (binding.startsWith("MOUSE_"))
+    if (binding.startsWith("MOUSE"))
         return Kind::Mouse;
     return Kind::Controller;
 }
