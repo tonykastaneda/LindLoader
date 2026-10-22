@@ -1,4 +1,4 @@
-. "C:\Users\tonyk\Documents\GitHub\LindLoader\tools\uitest\lib.ps1"
+. "C:\Users\tonyk\Documents\GitHub\Lindy\tools\uitest\lib.ps1"
 $log = "$T\logs\UI\analog.log"; "" | Set-Content $log
 try { $dlg = OpenControls "SEGA Race TV" } catch { Log "error: $_" }
 $all = Buttons (ByName $dlg "Steering & Pedals"); $steering = @($all[0], $all[1]); $pedals = @($all[3], $all[4])

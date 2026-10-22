@@ -1,10 +1,10 @@
 # Opens a game's Controls page with the Controllers toolbar button and captures the window.
 # Usage: layout.ps1 <game title> <name for the capture>
 param([string]$Title, [string]$Name)
-. "C:\Users\tonyk\Documents\GitHub\LindLoader\tools\uitest\lib.ps1"
+. "C:\Users\tonyk\Documents\GitHub\Lindy\tools\uitest\lib.ps1"
 $log = "$T\logs\UI\layout-$Name.log"; "" | Set-Content $log
-Get-Process LindLoader -ErrorAction SilentlyContinue | Stop-Process -Force
-$p = Start-Process "C:\Users\tonyk\Documents\GitHub\LindLoader\LindLoader.exe" -PassThru
+Get-Process Lindy -ErrorAction SilentlyContinue | Stop-Process -Force
+$p = Start-Process "C:\Users\tonyk\Documents\GitHub\Lindy\Lindy.exe" -PassThru
 Start-Sleep -Seconds 5
 $main = $A::RootElement.FindFirst($S::Children, (New-Object System.Windows.Automation.PropertyCondition($A::ProcessIdProperty, $p.Id)))
 Pick (ByName $main $Title); Start-Sleep -Milliseconds 500

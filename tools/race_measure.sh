@@ -1,6 +1,6 @@
 #!/bin/sh
 # Race TV pacing test: boot, coin + start with virtual pad 1, race ~2 min, print frame stats.
-L=/c/Users/tonyk/Documents/GitHub/LindLoader; P=$L/tools
+L=/c/Users/tonyk/Documents/GitHub/Lindy; P=$L/tools
 taskkill //IM linuxloader.exe //F >/dev/null 2>&1; sleep 2
 find $L/games/RACETV -name framestats.log -delete; rm -f $L/tools/logs/RACETV/*
 schtasks //run //tn LL_Run_RTV >/dev/null; sleep 60

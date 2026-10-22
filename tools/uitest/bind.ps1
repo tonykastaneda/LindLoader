@@ -5,7 +5,7 @@ Add-Type @"
 using System; using System.Runtime.InteropServices;
 public static class W { [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l); }
 "@
-$T = "C:\Users\tonyk\Documents\GitHub\LindLoader\tools"
+$T = "C:\Users\tonyk\Documents\GitHub\Lindy\tools"
 $log = "$T\logs\UI\bind.log"; "" | Set-Content $log
 function Log($m) { Add-Content $log $m }
 $A = [System.Windows.Automation.AutomationElement]; $S = [System.Windows.Automation.TreeScope]
@@ -17,8 +17,8 @@ function Find($root, $name, $type) {
     Log "not found: $name"; return $null
 }
 $CT = [System.Windows.Automation.ControlType]
-Get-Process LindLoader -ErrorAction SilentlyContinue | Stop-Process -Force
-$p = Start-Process "C:\Users\tonyk\Documents\GitHub\LindLoader\LindLoader.exe" -PassThru
+Get-Process Lindy -ErrorAction SilentlyContinue | Stop-Process -Force
+$p = Start-Process "C:\Users\tonyk\Documents\GitHub\Lindy\Lindy.exe" -PassThru
 Start-Sleep -Seconds 5
 $main = $A::RootElement.FindFirst($S::Children, (New-Object System.Windows.Automation.PropertyCondition($A::ProcessIdProperty, $p.Id)))
 Log "main: $($main.Current.Name)"

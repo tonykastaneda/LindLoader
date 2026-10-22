@@ -1,7 +1,7 @@
 ' Test launcher: run-logged.vbs <VT3|RACETV|VF5FS>
 ' No console window; game output to tools\logs\<game>\run.log, the loader's own log to tools\logs\<game>\loader.log.
 Set sh = CreateObject("WScript.Shell")
-root = "C:\Users\tonyk\Documents\GitHub\LindLoader\"
+root = "C:\Users\tonyk\Documents\GitHub\Lindy\"
 build = WScript.Arguments(0)
 base = root & "games\" & build & "\"
 logs = root & "tools\logs\" & build & "\"

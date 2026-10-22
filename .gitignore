@@ -5,7 +5,7 @@
 /build/
 /linuxloader.exe
 /ll-deps/
-/LindLoader.exe
+/Lindy.exe
 
 # Test tool output
 /tools/logs/
@@ -18,5 +18,10 @@
 /tools/cmd.txt
 /tools/winlist.txt
 /tools/testenv.txt
-/LindLoader.ini
+/Lindy.ini
 /config/
+/covers/
+/crosshairs/
+
+# Claude Code local settings and hooks
+/.claude/

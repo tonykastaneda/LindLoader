@@ -5,7 +5,7 @@
 # Test settings live in logs\T\cfg\<name>\ (created on first use, separate from LindLoader's
 # config\). Their controls add RS on pad 1 as a coin button. The game reads the pads while
 # unfocused, so nothing depends on window focus. Needs vpadd.py running (started if not).
-D=/c/Users/tonyk/Documents/GitHub/LindLoader
+D=/c/Users/tonyk/Documents/GitHub/Lindy
 T=$D/tools
 C=$T/logs/T/cfg/$1
 mkdir -p "$C" $T/shots

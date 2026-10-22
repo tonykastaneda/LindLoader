@@ -5,7 +5,7 @@ Play SEGA Lindbergh arcade games on Windows. Point LindLoader at a folder of you
 LindLoader has two parts:
 
 - **`linuxloader.exe`**, the emulator core: our version of [Linux Loader](https://github.com/lindbergh-loader/linuxloader), in `src/loader`.
-- **`LindLoader.exe`**, the Qt app you use to manage and launch games, in `src/ui`.
+- **`Lindy.exe`**, the Qt app you use to manage and launch games, in `src/ui`.
 
 LindLoader does not include or download games, and it does not decrypt anything. Use clean dumps of games you own.
 
@@ -21,6 +21,10 @@ LindLoader does not include or download games, and it does not decrypt anything.
   - Resolutions above 2048 wide (e.g. 4K) work.
   - The game's own 4:3 mode.
 - **Sega Race TV:** runs on Windows, including its network setup.
+- **Linked play on one PC** (`LOOPBACK_LINK`): several cabinets of Sega Race TV, one loader each, race each other over loopback. Lindy sets it up from **Game > Start Linked Play**.
+- **One mouse per player** in lightgun games (`RAW_MOUSE_INPUT`, `MOUSE1_`/`MOUSE2_` bindings), with crosshairs you can pick.
+- **Rebindable hotkeys:** Toggle Fullscreen and Toggle FPS Overlay, besides Test and Exit Game.
+- **Audio output device and volume** (`AUDIO_DEVICE`, `AUDIO_VOLUME`).
 - **Controller IDs** are saved to the controls file that was loaded.
 - **`--identify <folder>`** lists the games in a folder as JSON, for frontends.
 
@@ -32,7 +36,7 @@ src/ui/           the LindLoader Qt app
 tools/            build and test tools, see tools/README.md
 linuxloader.exe   built core   ┐
 ll-deps/          its DLLs     ├ build output (not in git)
-LindLoader.exe    built app    ┘
+Lindy.exe         built app    ┘
 ```
 
 ## Building (Windows)
@@ -40,7 +44,7 @@ LindLoader.exe    built app    ┘
 You need [MSYS2](https://www.msys2.org/) with:
 
 - **For the core:** the MinGW32 toolchain. Linux Loader is a 32-bit program.
-- **For the app:** the UCRT64 toolchain with `mingw-w64-ucrt-x86_64-qt6-static`. That makes `LindLoader.exe` a single file with no Qt DLLs.
+- **For the app:** the UCRT64 toolchain with `mingw-w64-ucrt-x86_64-qt6-static`. That makes `Lindy.exe` a single file with no Qt DLLs.
 
 ```
 tools/build.sh

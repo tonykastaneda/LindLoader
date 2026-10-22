@@ -1,8 +1,8 @@
-"""Virtual pad daemon: keeps two virtual Xbox 360 pads plugged in and runs
+"""Virtual pad daemon: keeps two virtual Xbox 360 pads (VPADS=n for more) plugged in and runs
 commands appended to cmd.txt (same syntax as vpads.py, without the delay):
-    <pad 1|2> tap <BUTTON> [hold_seconds]
-    <pad 1|2> press <BUTTON> | release <BUTTON>
-    <pad 1|2> stick <x> <y>
+    <pad 1..n> tap <BUTTON> [hold_seconds]
+    <pad 1..n> press <BUTTON> | release <BUTTON>
+    <pad 1..n> stick <x> <y>
     sleep <seconds>
 """
 import os
@@ -48,7 +48,7 @@ def run(pads, parts):
 
 
 def main():
-    pads = [vg.VX360Gamepad(), vg.VX360Gamepad()]
+    pads = [vg.VX360Gamepad() for _ in range(int(os.environ.get("VPADS", "2")))]
     open(CMD, "w").close()
     open(LOG, "w").close()
     done = 0
