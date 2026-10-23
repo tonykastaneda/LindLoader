@@ -38,9 +38,10 @@ function Pad([string[]]$cmds) {
     foreach ($c in $cmds) {
         for ($t = 0; $t -lt 50; $t++) { try { Add-Content "$Tools\cmd.txt" $c -ErrorAction Stop; break } catch { Start-Sleep -Milliseconds 50 } }
     }
-    $n = (Get-Content "$Tools\cmd.txt").Count
+    # vpadd.py skips blank lines and logs one line per command, "error on ..." for a bad one.
+    $n = @(Get-Content "$Tools\cmd.txt" | Where-Object { $_.Trim() }).Count
     for ($i = 0; $i -lt 900; $i++) {
-        $done = @(Get-Content "$Tools\vpadd.log" -ErrorAction SilentlyContinue | Where-Object { $_ -notmatch 'daemon started|error' }).Count
+        $done = @(Get-Content "$Tools\vpadd.log" -ErrorAction SilentlyContinue | Where-Object { $_ -notmatch 'daemon started' }).Count
         if ($done -ge $n) { break }; Start-Sleep -Milliseconds 200
     }
 }
