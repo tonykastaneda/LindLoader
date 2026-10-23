@@ -164,7 +164,7 @@ QWidget *GamePropertiesDialog::buildGraphicsPage()
     if (m_game.gameId == "SBPF")
     {
         auto *wide = new QCheckBox("Widescreen (wider 3D view at a wide resolution such as 1920 x 1080)");
-        wide->setChecked(m_ini.value("Display", "WIDESCREEN", "false").toLower() == "true");
+        wide->setChecked(m_ini.value("Display", "WIDESCREEN", "true").toLower() == "true");
         connect(wide, &QCheckBox::toggled, this, [this](bool on) {
             if (m_loading)
                 return;

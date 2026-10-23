@@ -884,6 +884,8 @@ void MainWindow::startLinkedPlay()
     dialog->open();
 }
 
+static QRect linkTile(HWND window, int i, int n);
+
 void MainWindow::startLinkedCabinets(const Game &game, const QStringList &controllerGuids, bool soundFromFirstOnly)
 {
     if (!m_processes.isEmpty())
@@ -898,7 +900,9 @@ void MainWindow::startLinkedCabinets(const Game &game, const QStringList &contro
     for (int c = 1; c <= controllerGuids.size(); ++c)
     {
         const QString dir =
-            m_library.prepareLinkCabinet(game, c, controllerGuids[c - 1], c == 1 || !soundFromFirstOnly, &error);
+            m_library.prepareLinkCabinet(game, c, controllerGuids[c - 1], c == 1 || !soundFromFirstOnly,
+                                         linkTile(reinterpret_cast<HWND>(winId()), c - 1, controllerGuids.size()).size(),
+                                         &error);
         if (dir.isEmpty())
         {
             QMessageBox::warning(this, "Lindy", error);
@@ -924,6 +928,20 @@ void MainWindow::startLinkedCabinets(const Game &game, const QStringList &contro
 // Tiles the cabinets' windows on the screen Lindy is on, as they appear: two side by side, three or
 // four in a grid. A game sets its window's size once more after showing it, so each window is put
 // in place again for a few seconds.
+// The screen area of linked cabinet i of n: borderless tiles covering the whole monitor Lindy is on (physical
+// pixels), like one split screen.
+static QRect linkTile(HWND window, int i, int n)
+{
+    MONITORINFO mi = {};
+    mi.cbSize = sizeof(mi);
+    GetMonitorInfoW(MonitorFromWindow(window, MONITOR_DEFAULTTOPRIMARY), &mi);
+    const QRect area(mi.rcMonitor.left, mi.rcMonitor.top, mi.rcMonitor.right - mi.rcMonitor.left,
+                     mi.rcMonitor.bottom - mi.rcMonitor.top);
+    const int cols = 2, rows = n == 2 ? 1 : 2;
+    const int w = area.width() / cols, h = area.height() / rows;
+    return QRect(area.x() + (i % cols) * w, area.y() + (i / cols) * h, w, h);
+}
+
 void MainWindow::arrangeWindows()
 {
     if (++m_arrangeTries > 120 || m_processes.size() < 2)
@@ -931,13 +949,7 @@ void MainWindow::arrangeWindows()
         m_arrangeTimer->stop();
         return;
     }
-    // The whole monitor Lindy is on, in physical pixels: borderless tiles cover it like one split screen.
-    MONITORINFO mi = {};
-    mi.cbSize = sizeof(mi);
-    GetMonitorInfoW(MonitorFromWindow(reinterpret_cast<HWND>(winId()), MONITOR_DEFAULTTOPRIMARY), &mi);
-    const QRect area(mi.rcMonitor.left, mi.rcMonitor.top, mi.rcMonitor.right - mi.rcMonitor.left,
-                     mi.rcMonitor.bottom - mi.rcMonitor.top);
-    const int n = m_processes.size(), cols = 2, rows = n == 2 ? 1 : 2;
+    const int n = m_processes.size();
     const int settleTicks = 30; // 15 s at 500 ms
     for (int i = 0; i < n; ++i)
     {
@@ -963,8 +975,7 @@ void MainWindow::arrangeWindows()
             reinterpret_cast<LPARAM>(&find));
         if (!find.hwnd)
             continue;
-        const int w = area.width() / cols, h = area.height() / rows;
-        const QRect cell(area.x() + (i % cols) * w, area.y() + (i / cols) * h, w, h);
+        const QRect cell = linkTile(reinterpret_cast<HWND>(winId()), i, n);
         // No title bar or border. With a keyboard cabinet, a click on another cabinet doesn't take the focus
         // (the keyboard only reaches the focused window; controllers reach every cabinet anyway).
         const LONG_PTR style = GetWindowLongPtrW(find.hwnd, GWL_STYLE);
@@ -995,13 +1006,26 @@ void MainWindow::arrangeWindows()
 
 void MainWindow::watchRunning()
 {
+    // Linked play is one session: when a cabinet exits (Exit Game in any window), the others close with it.
+    const bool linked = m_processes.size() > 1;
+    bool exited = false;
     for (int i = m_processes.size() - 1; i >= 0; --i)
         if (WaitForSingleObject(m_processes[i], 0) == WAIT_OBJECT_0)
         {
             CloseHandle(m_processes[i]);
             m_processes.removeAt(i);
             m_arranged.clear();
+            exited = true;
         }
+    if (linked && exited)
+    {
+        for (void *p : m_processes)
+        {
+            TerminateProcess(p, 0);
+            CloseHandle(p);
+        }
+        m_processes.clear();
+    }
     if (m_processes.isEmpty() && m_runTimer->isActive())
     {
         m_runTimer->stop();

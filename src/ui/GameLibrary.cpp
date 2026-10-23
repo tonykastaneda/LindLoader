@@ -585,7 +585,7 @@ static bool setSrtvCabinet(const QString &eeprom, int id)
 }
 
 QString GameLibrary::prepareLinkCabinet(const Game &game, int cabinet, const QString &controllerGuid, bool sound,
-                                        QString *error)
+                                        const QSize &tile, QString *error)
 {
     auto fail = [error](const QString &message) {
         if (error)
@@ -611,6 +611,15 @@ QString GameLibrary::prepareLinkCabinet(const Game &game, int cabinet, const QSt
     ini.setValue("Network", "LOOPBACK_LINK", "true");
     ini.setValue("Network", "SRTV_IPADDRESS", quoted(QString()));
     ini.setValue("Display", "FULLSCREEN", "false");
+    // Widescreen needs a wide resolution: at the native one (640 x 480), render at the window's size instead.
+    const bool native = ini.value("Display", "WIDTH", "AUTO").toUpper() == "AUTO" ||
+                        ini.value("Display", "HEIGHT", "AUTO").toUpper() == "AUTO";
+    if (native && ini.value("Display", "WIDESCREEN", "true").toLower() == "true" && tile.height() > 0 &&
+        tile.width() * 3 > tile.height() * 4)
+    {
+        ini.setValue("Display", "WIDTH", QString::number(tile.width()));
+        ini.setValue("Display", "HEIGHT", QString::number(tile.height()));
+    }
     ini.setValue("Paths", "SRAM_PATH", quoted(dir + "/sram.bin"));
     ini.setValue("Paths", "EEPROM_PATH", quoted(dir + "/eeprom.bin"));
     if (!sound)

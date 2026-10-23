@@ -3,6 +3,7 @@
 #include <QDateTime>
 #include <QList>
 #include <QObject>
+#include <QSize>
 #include <QString>
 #include <QStringList>
 #include <QVariant>
@@ -63,9 +64,10 @@ public:
     static inline const QString KeyboardController = QStringLiteral("keyboard");
     // Settings for cabinet n (1-based): a copy of the game's with link play on, windowed, its own
     // save data with its cabinet ID set, and player 1 on the n-th controller (or on controllerGuid, or the keyboard).
+    // tile is the size of the cabinet's window: a widescreen game at its native resolution renders at that size.
     // Returns the folder holding its linuxloader.ini and controls.ini, or an empty string.
     QString prepareLinkCabinet(const Game &game, int cabinet, const QString &controllerGuid, bool sound,
-                               QString *error);
+                               const QSize &tile, QString *error);
 
     // A player's (1 or 2) crosshair image: the chosen PNG, or Lindy's own, copied next to Lindy.exe.
     QString crosshairPath(int player) const;
