@@ -1,6 +1,7 @@
 #include <glad/gl.h>
 #include <SDL3/SDL.h>
 #include <string.h>
+#include <math.h>
 #include "glHooks.hpp"
 #include "../graphics/shaderPatches.h"
 #include "../patching/patchResolution.h"
@@ -8,8 +9,55 @@
 #include "../graphics/glTrace.h"
 
 static GLenum gTraceMatrixMode = GL_MODELVIEW;
+// LL_GLTRACE: how the 2D HUD (a 640x480 projection) is drawn: per draw, the game's call site and its screen bounds.
+static bool gTraceOn = getenv("LL_GLTRACE") != nullptr;
+static bool gHudProj = false;
+static float gBeginMin[2], gBeginMax[2], gBeginMv[16];
+static void *gBeginFrom;
+static int gBeginCount;
+static void hudBounds(float x, float y, float *mn, float *mx, const float *mv)
+{
+    const float sx = mv[0] * x + mv[4] * y + mv[12], sy = mv[1] * x + mv[5] * y + mv[13];
+    mn[0] = sx < mn[0] ? sx : mn[0];
+    mx[0] = sx > mx[0] ? sx : mx[0];
+    mn[1] = sy < mn[1] ? sy : mn[1];
+    mx[1] = sy > mx[1] ? sy : mx[1];
+}
+static void hudVertex(float x, float y)
+{
+    if (gTraceOn && gHudProj && gBeginFrom)
+    {
+        hudBounds(x, y, gBeginMin, gBeginMax, gBeginMv);
+        gBeginCount++;
+    }
+}
 static void traceMatrix(const char *what, const GLfloat *m)
 {
+    if (gTraceMatrixMode == GL_PROJECTION)
+    {
+        gHudProj = m[3] == 0.0f && m[7] == 0.0f && m[15] == 1.0f && m[0] > 0.0031f && m[0] < 0.00315f &&
+                   m[5] < -0.0041f && m[5] > -0.0042f;
+    }
+    else if (gTraceOn && gHudProj)
+    {
+        // The game's return addresses on the stack (just after a call instruction in its code), nearest first.
+        uintptr_t chain[5] = {};
+        int n = 0;
+        const uintptr_t *sp = (const uintptr_t *)__builtin_frame_address(0);
+        for (int k = 0; k < 2048 && n < 5; k++)
+        {
+            const uintptr_t v = sp[k];
+            if (v < 0x08048010 || v >= 0x0882d80f)
+                continue;
+            const unsigned char *c = (const unsigned char *)v;
+            const bool call = c[-5] == 0xE8 || (c[-2] == 0xFF && ((c[-1] >> 3) & 7) == 2) ||
+                              (c[-3] == 0xFF && ((c[-2] >> 3) & 7) == 2) || (c[-6] == 0xFF && ((c[-5] >> 3) & 7) == 2);
+            if (call && (n == 0 || chain[n - 1] != v))
+                chain[n++] = v;
+        }
+        glTrace("hud mv %s t=(%.0f %.0f) s=(%.2f %.2f) chain %08x %08x %08x %08x %08x", what, m[12], m[13], m[0], m[5],
+                chain[0], chain[1], chain[2], chain[3], chain[4]);
+    }
     if (gTraceMatrixMode == GL_PROJECTION)
         glTrace("%s PROJ [%.4f %.4f %.4f %.4f | %.4f %.4f %.4f %.4f | %.4f %.4f %.4f %.4f | %.4f %.4f %.4f %.4f]", what, m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9], m[10], m[11], m[12], m[13], m[14], m[15]);
 }
@@ -17,18 +65,31 @@ static void traceMatrix(const char *what, const GLfloat *m)
 
 extern "C" void __attribute__((cdecl)) wrap_glBegin(GLenum mode)
 {
+    if (gTraceOn && gHudProj)
+    {
+        glad_glGetFloatv(GL_MODELVIEW_MATRIX, gBeginMv);
+        gBeginMin[0] = gBeginMin[1] = 1e9f;
+        gBeginMax[0] = gBeginMax[1] = -1e9f;
+        gBeginCount = 0;
+        gBeginFrom = __builtin_return_address(0);
+    }
     if (glad_glBegin)
         glad_glBegin(mode);
 }
 
 extern "C" void __attribute__((cdecl)) wrap_glEnd()
 {
+    if (gTraceOn && gHudProj && gBeginFrom && gBeginCount)
+        glTrace("hud begin x %.0f..%.0f y %.0f..%.0f mvT=(%.1f %.1f) from %p", gBeginMin[0], gBeginMax[0], gBeginMin[1],
+                gBeginMax[1], gBeginMv[12], gBeginMv[13], gBeginFrom);
+    gBeginFrom = nullptr;
     if (glad_glEnd)
         glad_glEnd();
 }
 
 extern "C" void __attribute__((cdecl)) wrap_glVertex3f(GLfloat x, GLfloat y, GLfloat z)
 {
+    hudVertex(x, y);
     if (glad_glVertex3f)
         glad_glVertex3f(x, y, z);
 }
@@ -54,6 +115,8 @@ extern "C" void __attribute__((cdecl)) wrap_glMatrixMode(GLenum mode)
 
 extern "C" void __attribute__((cdecl)) wrap_glLoadIdentity()
 {
+    if (gTraceOn && gHudProj && gTraceMatrixMode == GL_MODELVIEW)
+        glTrace("hud mv identity from %p", __builtin_return_address(0));
     if (glad_glLoadIdentity)
         glad_glLoadIdentity();
 }
@@ -78,6 +141,8 @@ extern "C" void __attribute__((cdecl)) wrap_glTranslated(GLdouble x, GLdouble y,
 
 extern "C" void __attribute__((cdecl)) wrap_glTranslatef(GLfloat x, GLfloat y, GLfloat z)
 {
+    if (gTraceOn && gHudProj && gTraceMatrixMode == GL_MODELVIEW)
+        glTrace("hud mv translate %.1f %.1f from %p", x, y, __builtin_return_address(0));
     if (glad_glTranslatef)
         glad_glTranslatef(x, y, z);
 }
@@ -384,6 +449,7 @@ extern "C" void __attribute__((cdecl)) wrap_glVertex2d(GLdouble x, GLdouble y)
 
 extern "C" void __attribute__((cdecl)) wrap_glVertex2f(GLfloat x, GLfloat y)
 {
+    hudVertex(x, y);
     if (glad_glVertex2f)
         glad_glVertex2f(x, y);
 }
@@ -396,6 +462,7 @@ extern "C" void __attribute__((cdecl)) wrap_glVertex2i(GLint x, GLint y)
 
 extern "C" void __attribute__((cdecl)) wrap_glVertex3fv(const GLfloat *v)
 {
+    hudVertex(v[0], v[1]);
     if (glad_glVertex3fv)
         glad_glVertex3fv(v);
 }
@@ -504,8 +571,186 @@ extern "C" void __attribute__((cdecl)) wrap_glColorPointer(GLint size, GLenum ty
         glad_glColorPointer(size, type, stride, pointer);
 }
 
+/* Widescreen HUD: the game draws its 2D HUD as sprites on a 640x480 projection, each element (a gauge, a line of
+   text) as sprites one after another that touch. Touching sprites drawn in a row are one element; an element in the
+   left third moves to the left edge of the wide screen, one in the right third to the right edge, the rest stay in
+   the middle. Sprites of one element may be drawn between others' (a row of portraits, each with its frame): a sprite
+   also joins an earlier element of this frame it touches that has its texture. The element's size is last frame's (matched by its first sprite), so its first sprite already knows.
+   Frames that draw a full screen 2D picture (menus, movies) are laid out across the whole screen: those stay as they
+   are. Effects wider than the screen (rays, flashes) are no element. */
+struct HudElement
+{
+    GLint texture;
+    float key[2];       // its first sprite's corner
+    float min[2], max[2];
+    float shift;
+};
+static HudElement gHudLast[256], gHudNow[256];
+static int gHudLastCount, gHudNowCount, gHudCurrent = -1;
+static bool gHudFullScreenNow, gHudMenu;
+static float gHudPrevMin[2], gHudPrevMax[2]; // the previous sprite's bounds
+
+// A new frame: this frame's elements become last frame's.
+extern "C" void widescreenHudFrame(void)
+{
+    memcpy(gHudLast, gHudNow, sizeof(HudElement) * gHudNowCount);
+    gHudLastCount = gHudNowCount;
+    gHudNowCount = 0;
+    gHudCurrent = -1;
+    gHudMenu = gHudFullScreenNow;
+    gHudFullScreenNow = false;
+    gHudPrevMin[0] = gHudPrevMin[1] = 1e9f;
+    gHudPrevMax[0] = gHudPrevMax[1] = -1e9f;
+}
+
+// The sprite continues the previous one's row (a row of icons): as tall, level with it, a small gap away.
+static bool hudSameRow(const float *mn, const float *mx)
+{
+    const float h = mx[1] - mn[1], ph = gHudPrevMax[1] - gHudPrevMin[1];
+    const float w = mx[0] - mn[0], pw = gHudPrevMax[0] - gHudPrevMin[0];
+    if (h <= 0.0f || ph <= 0.0f || fabsf(h - ph) > 0.2f * (h > ph ? h : ph))
+        return false;
+    const float overlap = (mx[1] < gHudPrevMax[1] ? mx[1] : gHudPrevMax[1]) - (mn[1] > gHudPrevMin[1] ? mn[1] : gHudPrevMin[1]);
+    const float gap = mn[0] > gHudPrevMax[0] ? mn[0] - gHudPrevMax[0] : gHudPrevMin[0] > mx[0] ? gHudPrevMin[0] - mx[0] : 0.0f;
+    return overlap >= 0.8f * (h < ph ? h : ph) && gap <= 0.5f * (w < pw ? w : pw);
+}
+
+// How far to move a sprite with these screen bounds (in 640x480 units), given the room each side has.
+static float hudShift(GLint texture, const float *mn, const float *mx, bool upright, float margin)
+{
+    const float gap = 4.0f;
+    // A picture as wide as the screen and most of its height (a menu's background or its sliding panels, a movie)
+    // makes it a menu frame. Anything else this wide, such as the turned rays and flashes drawn across a race, is an
+    // effect: no element, drawn where it is.
+    if (mx[0] - mn[0] >= 600.0f)
+    {
+        if (upright && mx[1] - mn[1] >= 300.0f && mn[0] < 320.0f && mx[0] > 320.0f)
+            gHudFullScreenNow = true;
+        return 0.0f;
+    }
+    if (gHudMenu)
+        return 0.0f;
+    const bool row = gHudCurrent >= 0 && hudSameRow(mn, mx);
+    for (int a = 0; a < 2; a++)
+    {
+        gHudPrevMin[a] = mn[a];
+        gHudPrevMax[a] = mx[a];
+    }
+    int join = row ? gHudCurrent : -1;
+    for (int k = -1; k < gHudNowCount && join < 0; k++)
+    {
+        const int i = k < 0 ? gHudCurrent : k; // the element being drawn first
+        if (i < 0)
+            continue;
+        const HudElement &o = gHudNow[i];
+        if ((i == gHudCurrent || o.texture == texture) && mn[0] <= o.max[0] + gap && mx[0] >= o.min[0] - gap &&
+            mn[1] <= o.max[1] + gap && mx[1] >= o.min[1] - gap)
+            join = i;
+    }
+    if (join >= 0)
+    {
+        HudElement *e = &gHudNow[gHudCurrent = join];
+        for (int a = 0; a < 2; a++)
+        {
+            e->min[a] = mn[a] < e->min[a] ? mn[a] : e->min[a];
+            e->max[a] = mx[a] > e->max[a] ? mx[a] : e->max[a];
+        }
+        return e->shift;
+    }
+    if (gHudNowCount == (int)(sizeof(gHudNow) / sizeof(gHudNow[0])))
+        return 0.0f;
+    HudElement *e = &gHudNow[gHudCurrent = gHudNowCount++];
+    *e = {texture, {mn[0], mn[1]}, {mn[0], mn[1]}, {mx[0], mx[1]}, 0.0f};
+    float left = mn[0], right = mx[0];
+    for (int i = 0; i < gHudLastCount; i++)
+        if (gHudLast[i].texture == texture && fabsf(gHudLast[i].key[0] - mn[0]) < 1.0f &&
+            fabsf(gHudLast[i].key[1] - mn[1]) < 1.0f)
+        {
+            left = gHudLast[i].min[0] < left ? gHudLast[i].min[0] : left;
+            right = gHudLast[i].max[0] > right ? gHudLast[i].max[0] : right;
+            break;
+        }
+    const float centre = (left + right) / 2.0f;
+    e->shift = centre < 640.0f / 3.0f ? -margin : centre > 1280.0f / 3.0f ? margin : 0.0f;
+    return e->shift;
+}
+
 extern "C" void __attribute__((cdecl)) wrap_glDrawArrays(GLenum mode, GLint first, GLsizei count)
 {
+    const float margin = gHudProj ? widescreenHudMargin() : 0.0f;
+    if (gHudProj && (gTraceOn || margin > 0.0f))
+    {
+        GLint size = 0, type = 0, stride = 0, texture = 0;
+        void *ptr = nullptr;
+        glad_glGetIntegerv(GL_VERTEX_ARRAY_SIZE, &size);
+        glad_glGetIntegerv(GL_VERTEX_ARRAY_TYPE, &type);
+        glad_glGetIntegerv(GL_VERTEX_ARRAY_STRIDE, &stride);
+        glad_glGetIntegerv(GL_TEXTURE_BINDING_2D, &texture);
+        glad_glGetPointerv(GL_VERTEX_ARRAY_POINTER, &ptr);
+        float mv[16], mn[2] = {1e9f, 1e9f}, mx[2] = {-1e9f, -1e9f};
+        bool upright = true; // every corner on the bounds' edges: a rectangle that isn't turned
+        glad_glGetFloatv(GL_MODELVIEW_MATRIX, mv);
+        if (ptr && type == GL_FLOAT && size >= 2)
+        {
+            const int step = stride ? stride : size * 4;
+            for (int i = first; i < first + count; i++)
+            {
+                const float *v = (const float *)((const char *)ptr + i * step);
+                hudBounds(v[0], v[1], mn, mx, mv);
+            }
+            for (int i = first; i < first + count && upright; i++)
+            {
+                const float *v = (const float *)((const char *)ptr + i * step);
+                const float sx = mv[0] * v[0] + mv[4] * v[1] + mv[12], sy = mv[1] * v[0] + mv[5] * v[1] + mv[13];
+                upright = (fabsf(sx - mn[0]) < 1.0f || fabsf(sx - mx[0]) < 1.0f) &&
+                          (fabsf(sy - mn[1]) < 1.0f || fabsf(sy - mx[1]) < 1.0f);
+            }
+        }
+        if (gTraceOn)
+            glTrace("hud draw %d x %.0f..%.0f y %.0f..%.0f%s mvT=(%.1f %.1f) from %p", count, mn[0], mx[0], mn[1], mx[1],
+                    upright ? "" : " turned", mv[12], mv[13], __builtin_return_address(0));
+        const bool hud = margin > 0.0f && mn[0] <= mx[0] && gTraceMatrixMode == GL_MODELVIEW;
+        // The game parks sprites it hides just off its 4:3 screen (a menu panel that slides in later): on the wide
+        // screen they would show, so they aren't drawn.
+        if (hud && (mx[0] <= 0.0f || mn[0] >= 640.0f))
+            return;
+        const float shift = hud ? hudShift(texture, mn, mx, upright, margin) : 0.0f;
+        if (shift != 0.0f && glad_glDrawArrays)
+        {
+            float moved[16];
+            memcpy(moved, mv, sizeof(moved));
+            moved[12] += shift;
+            glad_glLoadMatrixf(moved);
+            glad_glDrawArrays(mode, first, count);
+            glad_glLoadMatrixf(mv);
+            return;
+        }
+        // A menu is laid out for the 4:3 screen, with panels parked just past its edges until they slide in: it is cut
+        // to the 4:3 middle, as the game's own screen edge would.
+        if (hud && gHudMenu && glad_glDrawArrays && glad_glScissor)
+        {
+            GLint vp[4], box[4];
+            glad_glGetIntegerv(GL_VIEWPORT, vp);
+            glad_glGetIntegerv(GL_SCISSOR_BOX, box);
+            const GLboolean was = glad_glIsEnabled(GL_SCISSOR_TEST);
+            const int w = (int)(vp[2] * 640.0f / (640.0f + 2.0f * margin) + 0.5f);
+            int x0 = vp[0] + (vp[2] - w) / 2, x1 = x0 + w, y0 = vp[1], y1 = vp[1] + vp[3];
+            if (was)
+            {
+                x0 = box[0] > x0 ? box[0] : x0;
+                y0 = box[1] > y0 ? box[1] : y0;
+                x1 = box[0] + box[2] < x1 ? box[0] + box[2] : x1;
+                y1 = box[1] + box[3] < y1 ? box[1] + box[3] : y1;
+            }
+            glad_glEnable(GL_SCISSOR_TEST);
+            glad_glScissor(x0, y0, x1 > x0 ? x1 - x0 : 0, y1 > y0 ? y1 - y0 : 0);
+            glad_glDrawArrays(mode, first, count);
+            glad_glScissor(box[0], box[1], box[2], box[3]);
+            if (!was)
+                glad_glDisable(GL_SCISSOR_TEST);
+            return;
+        }
+    }
     if (glad_glDrawArrays)
         glad_glDrawArrays(mode, first, count);
 }

@@ -1,5 +1,5 @@
 #pragma once
-/* Diagnostics: with LL_GLTRACE=<file>, glTrace() appends each distinct line once (first 2000) to that file. */
+/* Diagnostics: with LL_GLTRACE=<file>, glTrace() appends each distinct line once (first 6000) to that file. */
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,7 +9,7 @@ static inline void glTrace(const char *fmt, ...)
 {
     static int state = 0; /* 0 unknown, 1 on, -1 off */
     static FILE *out = NULL;
-    static unsigned long seen[4096];
+    static unsigned long seen[8192];
     static int lines = 0;
     if (state == 0)
     {
@@ -17,7 +17,7 @@ static inline void glTrace(const char *fmt, ...)
         out = path && *path ? fopen(path, "a") : NULL;
         state = out ? 1 : -1;
     }
-    if (state < 0 || lines >= 2000)
+    if (state < 0 || lines >= 6000)
         return;
     char line[512];
     va_list ap;
@@ -27,7 +27,7 @@ static inline void glTrace(const char *fmt, ...)
     unsigned long h = 5381;
     for (const char *c = line; *c; c++)
         h = h * 33 + (unsigned char)*c;
-    for (int i = 0; i < lines && i < 4096; i++)
+    for (int i = 0; i < lines && i < 8192; i++)
         if (seen[i] == h)
             return;
     seen[lines++] = h;

@@ -3,6 +3,8 @@
 #include <string.h>
 #include <malloc.h>
 #include <time.h>
+#include <stdio.h>
+#include <process.h>
 #include "../config/config.h"
 
 // Control look (1 = enabled, else 0)
@@ -372,15 +374,26 @@ int logSanityChecks(int level, const char *message)
 FILE *logGetStream()
 {
     /* LL_LOGFILE=path writes the log to that file, unbuffered (games can
-       take over stdout once they start). */
+       take over stdout once they start). A %p in it becomes the process ID,
+       so linked cabinets started together each get their own file. */
     static FILE *file;
     static int checked;
     if (!checked)
     {
         const char *path = getenv("LL_LOGFILE");
         checked = 1;
-        if (path && *path && (file = fopen(path, "a")) != NULL)
-            setvbuf(file, NULL, _IONBF, 0);
+        if (path && *path)
+        {
+            char expanded[1024];
+            const char *p = strstr(path, "%p");
+            if (p && strlen(path) < sizeof(expanded) - 16)
+            {
+                snprintf(expanded, sizeof(expanded), "%.*s%lu%s", (int)(p - path), path, (unsigned long)_getpid(), p + 2);
+                path = expanded;
+            }
+            if ((file = fopen(path, "a")) != NULL)
+                setvbuf(file, NULL, _IONBF, 0);
+        }
     }
     return file ? file : stdout;
 }

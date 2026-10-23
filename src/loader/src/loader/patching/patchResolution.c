@@ -3771,3 +3771,11 @@ const float *widescreenProjection(const float *m, float *out)
         out[12] *= scale;
     return out;
 }
+
+float widescreenHudMargin(void)
+{
+    if (!getConfig()->widescreen || gId != SEGA_RACE_TV_SBPF || !gMainViewActive || gHeight <= 0)
+        return 0.0f;
+    const float wide = 640.0f * ((float)gWidth / (float)gHeight) / (4.0f / 3.0f);
+    return wide > 641.0f ? (wide - 640.0f) / 2.0f : 0.0f;
+}

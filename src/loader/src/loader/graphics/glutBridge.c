@@ -83,9 +83,12 @@ void bridgeGlutMainLoopEvent(void)
     return;
 }
 
+void widescreenHudFrame(void); // elfLoader/glHooks.cpp: a new frame for the widescreen HUD layout
+
 void bridgeGlutSwapBuffers(void)
 {
     EmulatorConfig *config = getConfig();
+    widescreenHudFrame();
 
     if (gGrp == GROUP_OUTRUN || gGrp == GROUP_OUTRUN_TEST)
         pollEvents();

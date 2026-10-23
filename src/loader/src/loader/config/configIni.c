@@ -36,7 +36,7 @@ int createDefaultIni(const char *filePath)
     fprintf(file, "BLACK_BORDER_PERCENTAGE = %.1f\n\n", defaults.blackBorderPercentage * 100.0f);
     fprintf(file, "# Set to keep the aspect ratio in games like Sega Race TV Primeval Hunt and LGJ-SP\n");
     fprintf(file, "KEEP_ASPECT_RATIO = %s\n\n", defaults.keepAspectRatio ? "true" : "false");
-    fprintf(file, "# Set to fill a WIDTH x HEIGHT wider than 4:3 with a wider 3D view (the HUD stays 4:3). Sega Race TV\n");
+    fprintf(file, "# Set to fill a WIDTH x HEIGHT wider than 4:3 with a wider 3D view (the HUD moves out to the edges). Sega Race TV\n");
     fprintf(file, "WIDESCREEN = %s\n\n", defaults.widescreen ? "true" : "false");
     fprintf(file, "# Set to true to enable the mouse pointer/Cursor\nHIDE_CURSOR = %s\n\n", defaults.hideCursor ? "true" : "false");
     fprintf(file, "# Set to false if you don't want to limit the FPS\n");

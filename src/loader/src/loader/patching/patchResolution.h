@@ -18,6 +18,16 @@ int isTestMode();
 extern "C"
 #endif
 const float *widescreenProjection(const float *m, float *out);
+// Widescreen: how far (in 640x480 HUD units) the HUD can reach past each side of its 4:3 middle; 0 when off.
+#ifdef __cplusplus
+extern "C"
+#endif
+float widescreenHudMargin(void);
+// Widescreen: a new frame for the HUD layout (called when the game swaps buffers).
+#ifdef __cplusplus
+extern "C"
+#endif
+void widescreenHudFrame(void);
 
 typedef struct
 {

@@ -441,7 +441,9 @@ extern "C" int bridgeRecvfrom(SOCKET s, char *buf, int len, int flags, struct so
     {
         errno = mapWSAErrorToErrno(WSAGetLastError());
     }
-    log_info(">>> recvfrom EXIT: returning %d", ret);
+    log_info(">>> recvfrom EXIT: returning %d from %s:%u", ret,
+             ret >= 0 && from && from->sa_family == AF_INET ? inet_ntoa(((struct sockaddr_in *)from)->sin_addr) : "?",
+             ret >= 0 && from && from->sa_family == AF_INET ? ntohs(((struct sockaddr_in *)from)->sin_port) : 0);
     return ret;
 }
 

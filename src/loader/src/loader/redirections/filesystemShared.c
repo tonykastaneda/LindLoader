@@ -45,6 +45,7 @@
 #include <iphlpapi.h>
 #include <fcntl.h>
 #include <io.h>
+#include <errno.h>
 #define REAL_FUNC(name) name
 #endif
 
@@ -686,7 +687,26 @@ int sharedClose(int fd)
         }
     }
 
+#ifdef _WIN32
+    /* Sockets are Winsock handles the C runtime doesn't know, so its close fails with EBADF and
+       the socket stays open. A socket the game closed would keep its port: a new one bound to the
+       same address and port (link play rebinds its broadcast port for every match) then loses
+       datagrams to it, since Windows delivers each one to only one of them. */
+    int ret = _close(fd);
+    if (ret == -1 && errno == EBADF)
+    {
+        int type, len = sizeof(type);
+        if (getsockopt((SOCKET)fd, SOL_SOCKET, SO_TYPE, (char *)&type, &len) == 0)
+        {
+            log_info(">>> close: socket=%d", fd);
+            return closesocket((SOCKET)fd) == 0 ? 0 : -1;
+        }
+        errno = EBADF;
+    }
+    return ret;
+#else
     return _close(fd);
+#endif
 }
 
 static char *(*_fgets)(char *str, int n, FILE *stream) = NULL;

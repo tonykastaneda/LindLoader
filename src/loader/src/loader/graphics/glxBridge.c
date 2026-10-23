@@ -438,9 +438,12 @@ int bridgegluUnProject(double winX, double winY, double winZ, const double *mode
 
 #endif
 
+void widescreenHudFrame(void); // elfLoader/glHooks.cpp: a new frame for the widescreen HUD layout
+
 void bridgeGlxSwapBuffers(Display *dpy, GLXDrawable drawable)
 {
     EmulatorConfig *config = getConfig();
+    widescreenHudFrame();
 
     if (config->borderEnabled)
         drawGameBorder(config->width, config->height, config->whiteBorderPercentage, config->blackBorderPercentage);
