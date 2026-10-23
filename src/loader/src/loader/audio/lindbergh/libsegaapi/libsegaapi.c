@@ -1090,17 +1090,22 @@ Routing SEGAAPI_GetSPDIFOutChannelRouting(unsigned int dwChannel)
     return UNUSED_PORT;
 }
 
+/* The game's own output volume, which AUDIO_VOLUME scales: games set it (Sega Race TV does), and
+   setting it outright would undo AUDIO_VOLUME, e.g. sound on linked cabinets that are meant to be muted. */
+static unsigned int ioVolume = VOL_MAX;
+
 int SEGAAPI_SetIOVolume(SoundBoardIO dwPhysIO, unsigned int dwVolume)
 {
-    FAudioVoice_SetVolume(fAudioMasteringVoice, dwVolume / (float)VOL_MAX, FAUDIO_COMMIT_NOW);
+    ioVolume = dwVolume;
+    log_info("SEGAAPI: output volume %u of %u, AUDIO_VOLUME %d", dwVolume, (unsigned)VOL_MAX, getConfig()->audioVolume);
+    FAudioVoice_SetVolume(fAudioMasteringVoice, dwVolume / (float)VOL_MAX * (getConfig()->audioVolume / 100.0f),
+                          FAUDIO_COMMIT_NOW);
     return SEGA_SUCCESS;
 }
 
 unsigned int SEGAAPI_GetIOVolume(SoundBoardIO dwPhysIO)
 {
-    float volume;
-    FAudioVoice_GetVolume(fAudioMasteringVoice, &volume);
-    return (int)(volume * (float)VOL_MAX);
+    return ioVolume;
 }
 
 void SEGAAPI_SetLastStatus(int LastStatus)
