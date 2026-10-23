@@ -27,6 +27,7 @@
 #include "flowControl.h"
 #include "patchNetwork.h"
 #include "netLink.h"
+#include "../log/log.h"
 
 // Sega Race TV gives eth0 its cabinet's address here (register arguments). With loopback link play
 // that's this cabinet's own address, which the network emulation then reports as eth0's.
@@ -35,6 +36,33 @@ static int __attribute__((regparm(2))) srtvSetNetworkAddrEth0(unsigned int addr,
     (void)mask;
     netLinkSetLocalAddress(addr);
     return 1;
+}
+
+// How fast this CPU's time-stamp counter ticks (rdtsc), measured against the system's precise clock over
+// 50 ms; 0 if it can't be told. Games that took the counter's rate as the cabinet CPU's need the real one.
+static uint32_t measuredTscHz(void)
+{
+#ifdef _WIN32
+    LARGE_INTEGER freq, a, b;
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&a);
+    const uint64_t t0 = __builtin_ia32_rdtsc();
+    Sleep(50);
+    const uint64_t t1 = __builtin_ia32_rdtsc();
+    QueryPerformanceCounter(&b);
+    const double seconds = (double)(b.QuadPart - a.QuadPart) / (double)freq.QuadPart;
+#else
+    struct timespec a, b;
+    clock_gettime(CLOCK_MONOTONIC, &a);
+    const uint64_t t0 = __builtin_ia32_rdtsc();
+    usleep(50000);
+    const uint64_t t1 = __builtin_ia32_rdtsc();
+    clock_gettime(CLOCK_MONOTONIC, &b);
+    const double seconds = (b.tv_sec - a.tv_sec) + (b.tv_nsec - a.tv_nsec) / 1e9;
+#endif
+    const double hz = seconds > 0.0 ? (double)(t1 - t0) / seconds : 0.0;
+    // The games keep it in 32 bits.
+    return hz > 1e8 && hz < 4294967295.0 ? (uint32_t)(hz + 0.5) : 0;
 }
 
 extern uint32_t gId;
@@ -2947,6 +2975,17 @@ int initPatch()
 
             // Patch fullscreen
             detourFunction(0x08372391, stubRetZero);
+
+            // The game takes the time-stamp counter to tick at the cabinet's 2,992,610,000 Hz and paces its frames
+            // by it: at another rate it runs too slow or fast (50 FPS on a 2.5 GHz counter). Give it this CPU's.
+            {
+                const uint32_t tscHz = measuredTscHz();
+                if (tscHz)
+                {
+                    setVariable(0x08289353, tscHz);
+                    log_info("Time-stamp counter: %u Hz (the game assumed 2992610000)", tscHz);
+                }
+            }
 
             // CPU patch to support AMD processors
             patchMemoryFromString(0x0804d054, "9090909090"); //__intel_new_proc_init_P
