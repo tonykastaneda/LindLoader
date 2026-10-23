@@ -21,6 +21,7 @@ const QList<Default> &defaults()
         {"interface/backgroundScaling", "fill"},
         // Game list
         {"library/excluded", QStringList()},
+        {"library/afterUnpack", "ask"}, // the disk images, once unpacked: "ask", "keep" or "delete"
         // Audio
         {"audio/driver", ""},
         {"audio/device", ""},

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QDateTime>
+#include <QFileInfo>
 #include <QList>
 #include <QObject>
 #include <QSize>
@@ -44,6 +45,16 @@ public:
 
     // Rescans every library folder (runs in the background, emits scanned()).
     void rescan();
+    // For frontends: the game at path, which is its folder, a folder above it, or its executable (not a
+    // disk image). Its settings are the game list's when it is in a library folder.
+    bool findGame(const QString &path, Game *game, QString *error);
+
+    // Disk images (Batocera's .bin files) are never run: unpackImage unpacks one, with its "<name>_<part>"
+    // images, into a folder next to it, a game folder like any other. Emits extracting() and extractFailed();
+    // returns the folder, or an empty string if it failed. Blocks, so call it off the UI thread.
+    QString unpackImage(const QString &image);
+    // The images unpacked into image's folder: image and its parts.
+    QStringList unpackedImages(const QString &image) const;
 
     // Lindy.ini values, e.g. "ui/view". Without a defaultValue, AppSettings has the default.
     QVariant setting(const QString &key, const QVariant &defaultValue = {}) const;
@@ -99,7 +110,11 @@ private:
     void saveFolders() const;
     static QString gameKey(const Game &game);
     static bool isExcluded(const Game &game, const QStringList &excluded);
-    void extractImages(const QString &folder);
+    // The games linuxloader.exe --identify finds in folder; libraryFolder is where findConfigDir stops.
+    QList<Game> identify(const QString &folder, const QString &libraryFolder) const;
+    // Unpacks the disk images in folder (only that one image, if given) that aren't unpacked yet.
+    void extractImages(const QString &folder, const QString &only = QString());
+    static QString unpackedFolder(const QFileInfo &image);
     QString findConfigDir(const QString &gameDir, const QString &libraryFolder, const QString &shortTitle) const;
 
     QString m_appDir;

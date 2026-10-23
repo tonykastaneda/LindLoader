@@ -30,6 +30,7 @@ qt_add_executable(Lindy WIN32
     Gamepads.cpp Gamepads.h
     Bindings.cpp Bindings.h
     DiskImage.cpp DiskImage.h
+    UnpackImages.cpp UnpackImages.h
     IniFile.cpp IniFile.h
     AppSettings.cpp AppSettings.h
     Theme.cpp Theme.h

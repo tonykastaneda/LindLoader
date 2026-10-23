@@ -29,6 +29,12 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 public:
     explicit MainWindow(const QString &appDir, QWidget *parent = nullptr);
+    // Fills the game list from the library folders.
+    void scanLibrary();
+    // For frontends (Lindy.exe [--linked <cabinets>] <game>): starts the game at path without showing
+    // Lindy, linked with that many cabinets if more than one, and quits Lindy when it closes.
+    // False if it couldn't start (Lindy has said why).
+    bool runFromCommandLine(const QString &path, int cabinets);
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -106,6 +112,7 @@ private:
     Game m_runningGame;
     QDateTime m_runningSince;
     QTimer *m_runTimer = nullptr;
+    bool m_commandLine = false; // started by a frontend: quit when the game closes
 
     QPixmap m_background; // Settings > Interface > Game List Background
 };

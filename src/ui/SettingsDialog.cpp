@@ -28,6 +28,7 @@
 #include "AppSettings.h"
 #include "GameLibrary.h"
 #include "Theme.h"
+#include "UnpackImages.h"
 
 namespace
 {
@@ -246,6 +247,30 @@ QWidget *SettingsDialog::buildGameListPage()
     help(rescanButton, "Rescan All Games", "Searches the directories again and identifies every game.");
     bl->addWidget(rescanButton, 0, Qt::AlignRight);
     l->addWidget(box, 1);
+
+    // Disk images are unpacked on request, never run.
+    auto *images = new QGroupBox("Disk Images (.bin)");
+    auto *il = new QHBoxLayout(images);
+    auto *after = new QComboBox;
+    after->addItem("Ask", "ask");
+    after->addItem("Keep the Images", "keep");
+    after->addItem("Delete the Images", "delete");
+    onLoad([this, after] { after->setCurrentIndex(qMax(0, after->findData(m_library.setting("library/afterUnpack")))); });
+    connect(after, &QComboBox::currentIndexChanged, this,
+            [this, after] { changed("library/afterUnpack", after->currentData()); });
+    help(after, "After Unpacking",
+         "What happens to disk images once they're unpacked. Lindy runs the unpacked folder, so the image is "
+         "only needed to unpack it again.");
+    auto *unpack = iconButton("folder-open", "Unpack (.bin)...");
+    connect(unpack, &QPushButton::clicked, this, [this] { unpackDiskImages(m_library, this); });
+    help(unpack, "Unpack (.bin)",
+         "Unpacks disk images (Batocera's .bin files) into a folder next to each. Lindy doesn't run images "
+         "directly.");
+    il->addWidget(new QLabel("After Unpacking:"));
+    il->addWidget(after);
+    il->addStretch();
+    il->addWidget(unpack);
+    l->addWidget(images);
     return w;
 }
 

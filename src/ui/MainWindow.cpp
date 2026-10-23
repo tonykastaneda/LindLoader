@@ -1,4 +1,5 @@
 #include "MainWindow.h"
+#include "UnpackImages.h"
 
 #include <QAction>
 #include <QButtonGroup>
@@ -338,8 +339,48 @@ MainWindow::MainWindow(const QString &appDir, QWidget *parent) : QMainWindow(par
     if (!QFileInfo::exists(m_library.loaderPath()))
         QMessageBox::warning(this, "Lindy", "linuxloader.exe was not found next to Lindy.exe.");
     updateActions();
+}
+
+void MainWindow::scanLibrary()
+{
     statusBar()->showMessage("Scanning game folders...");
     m_library.rescan();
+}
+
+bool MainWindow::runFromCommandLine(const QString &path, int cabinets)
+{
+    m_commandLine = true;
+    Game game;
+    QString error;
+    if (!m_library.findGame(path, &game, &error))
+    {
+        QMessageBox::warning(this, "Lindy", error);
+        return false;
+    }
+    if (cabinets > 1)
+    {
+        const int most = GameLibrary::linkCabinets(game);
+        if (cabinets > most)
+        {
+            QMessageBox::warning(this, "Lindy",
+                                 most == 0 ? game.title + " has no linked play."
+                                           : QStringLiteral("%1 links up to %2 cabinets.").arg(game.title).arg(most));
+            return false;
+        }
+        // Each cabinet on the controller of its number, as "Automatic" in the Linked Play dialog.
+        startLinkedCabinets(game, QStringList(cabinets, QString()), true);
+        return !m_processes.isEmpty();
+    }
+    if (!m_library.applySettings(game, &error))
+    {
+        QMessageBox::warning(this, "Lindy", error);
+        return false;
+    }
+    void *process = launch(game, game.configDir, {});
+    if (!process)
+        return false;
+    started(game, {process});
+    return true;
 }
 
 void MainWindow::buildActions()
@@ -381,6 +422,7 @@ void MainWindow::buildMenus()
     QMenu *file = menuBar()->addMenu("&File");
     file->addAction(m_addFolder);
     file->addAction(m_rescan);
+    file->addAction("&Unpack (.bin)...", this, [this] { unpackDiskImages(m_library, this); });
     file->addSeparator();
     file->addAction(m_exit);
 
@@ -1030,6 +1072,11 @@ void MainWindow::watchRunning()
     {
         m_runTimer->stop();
         m_library.recordPlay(m_runningGame, m_runningSince.secsTo(QDateTime::currentDateTime()));
+        if (m_commandLine)
+        {
+            qApp->quit();
+            return;
+        }
         refreshList();
         if (isHidden())
             show();

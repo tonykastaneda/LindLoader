@@ -27,6 +27,8 @@ LindLoader does not include or download games, and it does not decrypt anything.
 - **Audio output device and volume** (`AUDIO_DEVICE`, `AUDIO_VOLUME`).
 - **Controller IDs** are saved to the controls file that was loaded.
 - **`--identify <folder>`** lists the games in a folder as JSON, for frontends.
+- **Lindy as a frontend's emulator:** `Lindy.exe "<game folder>"` starts a game with Lindy's settings without showing Lindy, and exits when it closes. `Lindy.exe --linked 4 "<game folder>"` starts linked play, and Exit Game in any cabinet closes them all.
+- **Disk images (.bin)** are unpacked with **File > Unpack (.bin)**, never run directly. Lindy can then delete the image and move the game into a library folder.
 
 ## Layout
 

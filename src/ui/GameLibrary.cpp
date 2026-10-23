@@ -183,7 +183,6 @@ void GameLibrary::rescan()
 {
     const QStringList folders = m_folders;
     const QStringList excluded = setting("library/excluded").toStringList();
-    const QString loader = loaderPath();
     auto *watcher = new QFutureWatcher<QList<Game>>(this);
     connect(watcher, &QFutureWatcher<QList<Game>>::finished, this, [this, watcher] {
         m_games = watcher->result();
@@ -192,47 +191,92 @@ void GameLibrary::rescan()
         watcher->deleteLater();
         emit scanned();
     });
-    watcher->setFuture(QtConcurrent::run([this, folders, excluded, loader] {
+    watcher->setFuture(QtConcurrent::run([this, folders, excluded] {
         QList<Game> found;
         for (const QString &folder : folders)
-            extractImages(folder);
-        for (const QString &folder : folders)
-        {
-            QProcess p;
-            p.setWorkingDirectory(QFileInfo(loader).absolutePath());
-            p.start(loader, {"--identify", folder});
-            p.waitForFinished(120000);
-            const QList<QByteArray> lines = p.readAllStandardOutput().split('\n');
-            for (const QByteArray &line : lines)
-            {
-                const QJsonObject o = QJsonDocument::fromJson(line.trimmed()).object();
-                if (o.isEmpty())
-                    continue;
-                Game g;
-                g.gameDir = QDir::cleanPath(o["dir"].toString());
-                g.elf = o["elf"].toString();
-                g.crc = o["crc"].toString();
-                g.clean = o["clean"].toBool();
-                g.known = o["known"].toBool();
-                g.title = g.known ? o["title"].toString() : QStringLiteral("Unknown game (%1)").arg(g.elf);
-                g.shortTitle = g.known ? o["short"].toString() : g.crc.toLower();
-                g.gameId = o["id"].toString();
-                g.dvp = o["dvp"].toString();
-                g.year = o["year"].toString();
-                g.resolutions = o["resolutions"].toString();
-                g.type = o["type"].toString();
-                g.configDir = findConfigDir(g.gameDir, folder, g.shortTitle);
-                if (isExcluded(g, excluded))
-                    continue;
-                for (const QString &dir : {g.gameDir, splitDataFolder(g.gameDir)})
-                    for (QDirIterator it(dir, QDir::Files | QDir::Hidden, QDirIterator::Subdirectories);
-                         !dir.isEmpty() && it.hasNext();)
-                        g.size += it.nextFileInfo().size();
-                found << g;
-            }
-        }
+            for (const Game &g : identify(folder, folder))
+                if (!isExcluded(g, excluded))
+                    found << g;
         return found;
     }));
+}
+
+QList<Game> GameLibrary::identify(const QString &folder, const QString &libraryFolder) const
+{
+    const QString loader = loaderPath();
+    QProcess p;
+    p.setWorkingDirectory(QFileInfo(loader).absolutePath());
+    p.start(loader, {"--identify", folder});
+    p.waitForFinished(120000);
+    QList<Game> found;
+    const QList<QByteArray> lines = p.readAllStandardOutput().split('\n');
+    for (const QByteArray &line : lines)
+    {
+        const QJsonObject o = QJsonDocument::fromJson(line.trimmed()).object();
+        if (o.isEmpty())
+            continue;
+        Game g;
+        g.gameDir = QDir::cleanPath(o["dir"].toString());
+        g.elf = o["elf"].toString();
+        g.crc = o["crc"].toString();
+        g.clean = o["clean"].toBool();
+        g.known = o["known"].toBool();
+        g.title = g.known ? o["title"].toString() : QStringLiteral("Unknown game (%1)").arg(g.elf);
+        g.shortTitle = g.known ? o["short"].toString() : g.crc.toLower();
+        g.gameId = o["id"].toString();
+        g.dvp = o["dvp"].toString();
+        g.year = o["year"].toString();
+        g.resolutions = o["resolutions"].toString();
+        g.type = o["type"].toString();
+        g.configDir = findConfigDir(g.gameDir, libraryFolder, g.shortTitle);
+        for (const QString &dir : {g.gameDir, splitDataFolder(g.gameDir)})
+            for (QDirIterator it(dir, QDir::Files | QDir::Hidden, QDirIterator::Subdirectories);
+                 !dir.isEmpty() && it.hasNext();)
+                g.size += it.nextFileInfo().size();
+        found << g;
+    }
+    return found;
+}
+
+bool GameLibrary::findGame(const QString &path, Game *game, QString *error)
+{
+    auto fail = [error](const QString &message) {
+        if (error)
+            *error = message;
+        return false;
+    };
+    const QFileInfo info(path);
+    if (!info.exists())
+        return fail("Not found: " + QDir::toNativeSeparators(path));
+    QString dir = info.absoluteFilePath();
+    if (info.isFile() && DiskImage::isImage(dir))
+        return fail(info.fileName() + " needs to be unpacked before it can be played.\n\n"
+                                      "Open Lindy and choose File > Unpack (.bin).");
+    if (info.isFile())
+        dir = info.absolutePath();
+    // In a library folder, its settings are the ones the game list uses.
+    QString library = dir;
+    for (const QString &folder : m_folders)
+    {
+        const QString root = QDir::cleanPath(folder);
+        if (dir.compare(root, Qt::CaseInsensitive) == 0 || dir.startsWith(root + "/", Qt::CaseInsensitive))
+            library = root;
+    }
+    const QList<Game> games = identify(dir, library);
+    if (games.isEmpty())
+        return fail("No Lindbergh game found in " + QDir::toNativeSeparators(dir));
+    if (games.size() > 1)
+    {
+        QStringList found;
+        for (const Game &g : games)
+            found << g.title + " (" + QDir::toNativeSeparators(g.gameDir) + ")";
+        return fail(QStringLiteral("%1 holds %2 games. Give the folder of one of them:\n\n%3")
+                        .arg(QDir::toNativeSeparators(dir))
+                        .arg(games.size())
+                        .arg(found.join("\n")));
+    }
+    *game = games.first();
+    return true;
 }
 
 bool GameLibrary::ensureConfig(const Game &game, QString *error)
@@ -288,12 +332,44 @@ void mergeInto(const QString &from, const QString &to)
 }
 } // namespace
 
+QString GameLibrary::unpackImage(const QString &image)
+{
+    const QFileInfo info(image);
+    extractImages(info.absolutePath(), info.absoluteFilePath());
+    const QString dir = unpackedFolder(info);
+    return QFileInfo::exists(dir + "/.unpacked-" + info.fileName()) ? dir : QString();
+}
+
+QStringList GameLibrary::unpackedImages(const QString &image) const
+{
+    const QFileInfo info(image);
+    const QString dir = unpackedFolder(info);
+    QStringList images;
+    if (QFileInfo::exists(dir + "/.unpacked-" + info.fileName()))
+        images << info.absoluteFilePath();
+    for (const QFileInfo &part : QDir(info.absolutePath()).entryInfoList({info.completeBaseName() + "_*"}, QDir::Files))
+        if (QFileInfo::exists(dir + "/.unpacked-" + part.fileName()))
+            images << part.absoluteFilePath();
+    return images;
+}
+
+// An unpacked game folder holds a ".unpacked-<image>" marker. It is named after the image, or
+// "<name> (bin)" when a folder of that name already exists (Windows ignores case: vf5fs = VF5FS).
+QString GameLibrary::unpackedFolder(const QFileInfo &image)
+{
+    const QString base = image.absolutePath() + "/" + image.completeBaseName();
+    for (const QString &dir : {base, base + " (bin)"})
+        if (QFileInfo::exists(dir + "/.unpacked-" + image.fileName()))
+            return dir;
+    return QFileInfo::exists(base) ? base + " (bin)" : base;
+}
+
 // Disk images (Batocera's .bin files) are unpacked once into a folder next to them, named after
 // the image; the loader then finds the game there like any other. Some games come as several
 // images, like the installer at github.com/zognic/lindbergh-install handles: "<game>_<part>.bin"
 // belongs to "<game>.bin". When the part holds game folders (rom, disk0, ...) they are merged into
 // the game's folder, otherwise it goes into a subfolder named after the part (harley_fs2.bin -> fs).
-void GameLibrary::extractImages(const QString &folder)
+void GameLibrary::extractImages(const QString &folder, const QString &only)
 {
     // Images sit in the library folder or one level below; game dumps themselves contain .bin files.
     QList<QFileInfo> images;
@@ -317,24 +393,20 @@ void GameLibrary::extractImages(const QString &folder)
     };
     QList<QPair<QFileInfo, QFileInfo>> work; // image, the main image it is a part of (or empty)
     for (const QFileInfo &image : images)
-        work << qMakePair(image, partOf(image));
+    {
+        const QFileInfo main = partOf(image);
+        // With only set, just that image and its extra parts.
+        if (only.isEmpty() || QFileInfo(only) == image || (!main.fileName().isEmpty() && QFileInfo(only) == main))
+            work << qMakePair(image, main);
+    }
     std::stable_sort(work.begin(), work.end(), [](const auto &a, const auto &b) {
         return a.second.fileName().isEmpty() && !b.second.fileName().isEmpty();
     });
-    // An unpacked game folder holds a ".unpacked-<image>" marker. It is named after the image, or
-    // "<name> (bin)" when a folder of that name already exists (Windows ignores case: vf5fs = VF5FS).
-    auto folderFor = [](const QFileInfo &image) {
-        const QString base = image.absolutePath() + "/" + image.completeBaseName();
-        for (const QString &dir : {base, base + " (bin)"})
-            if (QFileInfo::exists(dir + "/.unpacked-" + image.fileName()))
-                return dir;
-        return QFileInfo::exists(base) ? base + " (bin)" : base;
-    };
 
     for (const auto &[image, main] : work)
     {
         const bool isPart = !main.fileName().isEmpty();
-        const QString gameDir = folderFor(isPart ? main : image);
+        const QString gameDir = unpackedFolder(isPart ? main : image);
         const QString marker = gameDir + "/.unpacked-" + image.fileName();
         if (QFileInfo::exists(marker))
             continue;
