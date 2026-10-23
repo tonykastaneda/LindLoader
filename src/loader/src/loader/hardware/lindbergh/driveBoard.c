@@ -34,12 +34,12 @@ int enableRead = 0;
 ssize_t driveboardRead(int fd, void *buf, size_t count)
 {
     memset(buffer, '\0', 64);
-    if (enableRead)
-    {
-        char *mybuf = (char *)buf;
-        mybuf[0] = response;
-        enableRead = 0;
-    }
+    // Every read gets a byte, so it must always be the board's reply (its last one when nothing new
+    // was asked): leaving buf as it was handed the game whatever its buffer held. OutRun 2 SP SDX reads
+    // into an uninitialised stack buffer and takes a reply's low 3 bits as an alarm (1 encoder,
+    // 2 overcurrent, 3 overheat), so now and then a stray byte stopped it on "DRIVE BOARD FAULT DETECTED".
+    ((uint8_t *)buf)[0] = response;
+    enableRead = 0;
     return 1;
 }
 
