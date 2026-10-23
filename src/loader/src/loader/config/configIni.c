@@ -39,6 +39,9 @@ int createDefaultIni(const char *filePath)
     fprintf(file, "# Set to fill a WIDTH x HEIGHT wider than the game's own shape with a wider 3D view, the HUD keeping\n");
     fprintf(file, "# its shape. Sega Race TV (4:3, its HUD moves out to the edges) and OutRun 2 SP SDX (5:3)\n");
     fprintf(file, "WIDESCREEN = %s\n\n", defaults.widescreen ? "true" : "false");
+    fprintf(file, "# Set to remove the black band behind the credit text at the top of the screen, which hides the top\n");
+    fprintf(file, "# of the 3D at resolutions other than the cabinet's. Virtua Fighter 5 Final Showdown Rev B\n");
+    fprintf(file, "HIDE_CREDIT_BAND = %s\n\n", defaults.hideCreditBand ? "true" : "false");
     fprintf(file, "# Set to true to enable the mouse pointer/Cursor\nHIDE_CURSOR = %s\n\n", defaults.hideCursor ? "true" : "false");
     fprintf(file, "# Set to false if you don't want to limit the FPS\n");
     fprintf(file, "FPS_LIMITER_ENABLED = %s\n\n", defaults.fpsLimiter ? "true" : "false");

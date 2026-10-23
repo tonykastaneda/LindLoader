@@ -173,6 +173,20 @@ QWidget *GamePropertiesDialog::buildGraphicsPage()
         });
         form->addRow(wide);
     }
+    // The loader removes Virtua Fighter 5 FS Rev B's black band behind the credit text (it hides the top of
+    // the 3D at other resolutions). New in the loader's [Display], so written there by name like Widescreen.
+    if (m_game.shortTitle == "vf5-fs-rev-b")
+    {
+        auto *band = new QCheckBox("Hide Credit Band (3D view uses the full height, credit text drawn over it)");
+        band->setChecked(m_ini.value("Display", "HIDE_CREDIT_BAND", "true").toLower() == "true");
+        connect(band, &QCheckBox::toggled, this, [this](bool on) {
+            if (m_loading)
+                return;
+            m_ini.setValue("Display", "HIDE_CREDIT_BAND", on ? "true" : "false");
+            m_ini.save();
+        });
+        form->addRow(band);
+    }
     dl->addWidget(box);
 
     auto *frame = new QGroupBox("Frame Rate");

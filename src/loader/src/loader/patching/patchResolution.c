@@ -3596,6 +3596,13 @@ int initResolutionPatches()
             const uint32_t wideMode = modeTable + 10 * 28; // 1360x768
 
             patchMemoryFromString(antiAlias, "01"); // Enable Anti Alias
+            // The game covers the top 1/16 of the screen with a black band ("info_base") behind the
+            // credit text. The cabinet's 1280x768 mode starts its 3D view below the band; ours run
+            // the 3D full height, so the band hides the top of the picture. Never creating the
+            // band leaves the credit text over the 3D (HIDE_CREDIT_BAND). Rev B only: Rev A's
+            // address isn't known.
+            if (!revA && getConfig()->hideCreditBand)
+                patchMemoryFromString(0x080d0e6c, "9090");
             if (gWidth * 3 <= gHeight * 4)
             {
                 // 4:3: use the game's own 1024x768 mode (entry 3 of the mode table) unchanged. Its

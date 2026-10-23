@@ -299,6 +299,7 @@ typedef struct
     int hummerFlickerFix;
     int keepAspectRatio;
     int widescreen;
+    int hideCreditBand;
     int fpsLimiter;
     int vsync; /* VSYNC_AUTO, 0 off, n = swap interval n */
     int frameStats;
