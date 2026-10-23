@@ -60,6 +60,14 @@ A fullscreen game can show an older frame in desktop screenshots: Windows only r
 - `analog.ps1`: Race TV, binds steering, Steer Left and gas with the stick and trigger, and checks that an analog pedal ignores a button.
 - `p2.ps1`: VF5, binds player 2's Button 1 with pad 2.
 
+## Linked play and command line tests
+
+`linktest\` tests Sega Race TV linked play and Lindy's command line for frontends. The games come from the first library folder in `Lindy.ini` (its `RACETV` and `VT3` folders). The linked play tests need `vpadd.py` running with four pads: start it with `VPADS=4`. Run them from PowerShell in the logged-in session with `powershell -ExecutionPolicy Bypass -File linktest\<script>.ps1`. They close any running Lindy and games first.
+
+- `race.ps1 [-Cabinets 2-4] [-Tag name]`: Game > Start Linked Play from Lindy, then the pads coin up, pick Multi-Player, pick cars and race. Every cabinet is screenshotted at each step to `shots\<tag>-<step>.png`, with a 2x2 picture of them all. Each cabinet keeps a warnings-only log in `logs\linktest\<tag>-<pid>.log`, so a crash report isn't lost. The script prints the crash lines it finds. The cabinets are left running.
+- `exit.ps1 [-Cabinets n] [-ExitOn n]`: `Lindy.exe --linked n "<RACETV>"`, then Exit Game (Start + Back) on one cabinet's pad. It passes when every cabinet and Lindy have closed, with exit code 0.
+- `cli.ps1 [-Only case,case]`: each command line case runs (a game folder, `disk0`, a missing path, the library folder itself, a folder with no game, and `--linked` on VT3, with 5, with 1 and with a word). The script checks the game it starts or the message it shows, and the exit code. A `.bin` in the library folder adds the disk image case.
+
 ## Screenshots
 
 - **`snap.ps1 -Out <png>`** captures the whole desktop. It writes `<png>` scaled to 1280 wide and `<name>.full.png` at full size. With `-Send "caption"` it also texts the image through the Mac's `imsg` CLI to the number in the `LL_IMSG_TO` environment variable.
