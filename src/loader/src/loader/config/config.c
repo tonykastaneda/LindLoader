@@ -147,7 +147,7 @@ void setDefaultValues(EmulatorConfig *cfg)
     cfg->useAltJvsPassthrough = 0;
     cfg->hummerFlickerFix = 0;
     cfg->keepAspectRatio = 1;
-    cfg->widescreen = 1; // only Sega Race TV uses it
+    cfg->widescreen = 1; // only Sega Race TV and OutRun 2 SP SDX use it
     cfg->ramboGunsSwitch = 0;
     cfg->harleyAnalogRemap = 0;
     cfg->id5ChineseLanguage = 0;

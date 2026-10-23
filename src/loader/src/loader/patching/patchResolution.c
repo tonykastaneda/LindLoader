@@ -32,6 +32,7 @@ int srtvX = 0;
 int srtvW, srtvH;
 // Widescreen: set while the game draws its main (full screen) view, where the projection gets wider.
 static bool gMainViewActive = false;
+static float widescreenScale(void);
 int phX, phY, phW, phH;
 int phX2, phY2, phW2, phH2;
 
@@ -232,6 +233,14 @@ void bridgeglOrtho(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top,
         }
         break;
         default:
+            // OutRun's 2D layer keeps its shape in widescreen, like its glLoadMatrixf ones (widescreenProjection).
+            if (gGrp == GROUP_OUTRUN && right - left == 800.0 && fabs(top - bottom) == 480.0)
+            {
+                const double scale = widescreenScale();
+                const double mid = (left + right) / 2.0, half = (right - left) / 2.0 / scale;
+                left = mid - half;
+                right = mid + half;
+            }
             break;
     }
 #ifdef __linux__
@@ -273,6 +282,8 @@ void bridgeglViewport(GLint x, GLint y, GLsizei width, GLsizei height)
                 width = gWidth;
                 height = gHeight;
             }
+            // Widescreen widens what's drawn to the screen, not the mirror or effect textures.
+            gMainViewActive = width == gWidth && height == gHeight;
         }
         // Patches the Resolution even tho is not needed to fix patched ELFs.
         else if (gWidth == 800 && gHeight == 480)
@@ -3752,17 +3763,43 @@ int initResolutionPatches()
 /* Widescreen for a 4:3 game: in its main view, a 4:3 perspective projection sees as much more to the sides as the
    screen is wider (same vertical field of view), and the 640x480 HUD's projection keeps it 4:3, in the middle.
    Other projections (mirror, reflections and shadows, drawn to textures of their own shape) stay as they are. */
+// Widescreen: the shape the game was made for (Sega Race TV 4:3, OutRun 2 SP SDX 5:3), while it draws
+// its main view; 0 when it isn't widened.
+static float widescreenBaseAspect(void)
+{
+    if (!getConfig()->widescreen || !gMainViewActive || gHeight <= 0)
+        return 0.0f;
+    if (gId == SEGA_RACE_TV_SBPF)
+        return 4.0f / 3.0f;
+    if (gGrp == GROUP_OUTRUN)
+        return 5.0f / 3.0f;
+    return 0.0f;
+}
+
+// How much narrower the game's x range becomes: the 3D view widens (its projection was made for the
+// game's own shape) and 2D keeps its shape, in the middle. 1 when nothing changes.
+static float widescreenScale(void)
+{
+    const float base = widescreenBaseAspect();
+    if (base == 0.0f)
+        return 1.0f;
+    const float scale = base / ((float)gWidth / (float)gHeight);
+    return scale < 0.999f ? scale : 1.0f;
+}
+
 const float *widescreenProjection(const float *m, float *out)
 {
-    if (!getConfig()->widescreen || gId != SEGA_RACE_TV_SBPF || !gMainViewActive || gHeight <= 0)
+    const float scale = widescreenScale();
+    if (scale == 1.0f)
         return m;
-    const float scale = (4.0f / 3.0f) / ((float)gWidth / (float)gHeight);
-    if (scale >= 0.999f)
-        return m;
+    const float base = widescreenBaseAspect();
     const bool perspective = m[3] == 0.0f && m[7] == 0.0f && m[11] == -1.0f && m[15] == 0.0f && m[4] == 0.0f &&
-                             m[8] == 0.0f && m[0] > 0.0f && fabsf(m[5] / m[0] - 4.0f / 3.0f) < 0.01f;
-    const bool hud = m[3] == 0.0f && m[7] == 0.0f && m[11] == 0.0f && m[15] == 1.0f && m[4] == 0.0f &&
-                     fabsf(m[0] - 2.0f / 640.0f) < 1e-5f && fabsf(m[5] + 2.0f / 480.0f) < 1e-5f;
+                             m[8] == 0.0f && m[0] > 0.0f && fabsf(m[5] / m[0] - base) < 0.01f;
+    // The 2D layer: pixel coordinates over the game's screen (Race TV 640 x 480, OutRun 800 x 480; OutRun's
+    // 640 x 480 one puts the rendered scene on the screen, so it stays full width).
+    const bool hudWidth = gGrp == GROUP_OUTRUN ? fabsf(m[0] - 2.0f / 800.0f) < 1e-5f : fabsf(m[0] - 2.0f / 640.0f) < 1e-5f;
+    const bool hud = m[3] == 0.0f && m[7] == 0.0f && m[11] == 0.0f && m[15] == 1.0f && m[4] == 0.0f && hudWidth &&
+                     fabsf(fabsf(m[5]) - 2.0f / 480.0f) < 1e-5f;
     if (!perspective && !hud)
         return m;
     memcpy(out, m, 16 * sizeof(float));
