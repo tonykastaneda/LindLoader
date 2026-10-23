@@ -27,6 +27,9 @@
 #include "log/log.h"
 #include "mainShared.h"
 #include "version.h"
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 #define LD_LIBRARY_PATH "LD_LIBRARY_PATH"
 #define LD_PRELOAD "LD_PRELOAD"
@@ -289,6 +292,78 @@ bool isPathAbsolute(const char *path)
 
     return false;
 }
+
+#ifdef _WIN32
+/* Games keep their folder's path in fixed-size buffers, and Windows paths end at 260 characters
+   (MAX_PATH): Virtua Tennis 3 in a folder more than about 200 characters deep can't find its files.
+   A long game path runs through a drive letter instead, mapped to the folder two levels up (games
+   reach ../ for their data). Each loader adds its own mapping and removes it when it exits, so
+   linked cabinets of one game share the letter until the last one closes; a killed loader's
+   mapping stays until logoff, and the next start reuses its letter. */
+#define LONG_GAME_PATH 100
+static char gMappedDrive[3];
+static char gMappedTarget[MAX_PATH_LENGTH + 4];
+
+static void unmapGamePath(void)
+{
+    if (gMappedDrive[0])
+        DefineDosDeviceA(DDD_RAW_TARGET_PATH | DDD_REMOVE_DEFINITION | DDD_EXACT_MATCH_ON_REMOVE, gMappedDrive,
+                         gMappedTarget);
+    gMappedDrive[0] = '\0';
+}
+
+static void shortenGamePath(char *path, size_t size)
+{
+    char full[MAX_PATH_LENGTH];
+    const DWORD n = GetFullPathNameA(path, sizeof(full), full, NULL);
+    if (n == 0 || n >= sizeof(full) || strlen(full) <= LONG_GAME_PATH || full[1] != ':') // not network paths
+        return;
+    size_t len = strlen(full);
+    while (len > 3 && (full[len - 1] == '\\' || full[len - 1] == '/'))
+        full[--len] = '\0';
+    // The folder two levels up, or as far up as there is short of the drive itself.
+    char *cut = NULL;
+    for (int up = 0; up < 2; up++)
+    {
+        char *slash = NULL;
+        for (char *c = full + 3; c < (cut ? cut : full + len); c++)
+            if (*c == '\\' || *c == '/')
+                slash = c;
+        if (!slash)
+            break;
+        cut = slash;
+    }
+    if (!cut)
+        return;
+    const char *rest = cut + 1;
+    *cut = '\0';
+    snprintf(gMappedTarget, sizeof(gMappedTarget), "\\??\\%s", full);
+
+    // A letter already mapped there (another cabinet, or a killed loader's), else a free one.
+    char drive[3] = "?:";
+    char target[MAX_PATH_LENGTH + 8];
+    for (char l = 'Z'; l >= 'D' && drive[0] == '?'; l--)
+    {
+        char name[3] = {l, ':', '\0'};
+        if (QueryDosDeviceA(name, target, sizeof(target)) && _stricmp(target, gMappedTarget) == 0)
+            drive[0] = l;
+    }
+    const DWORD used = GetLogicalDrives();
+    for (char l = 'Z'; l >= 'D' && drive[0] == '?'; l--)
+        if (!(used & (1u << (l - 'A'))))
+            drive[0] = l;
+    if (drive[0] == '?' || !DefineDosDeviceA(DDD_RAW_TARGET_PATH, drive, gMappedTarget))
+    {
+        log_warn("Game path is %u characters long and no drive letter could stand in for it; it may not run.",
+                 (unsigned)len);
+        return;
+    }
+    memcpy(gMappedDrive, drive, sizeof(gMappedDrive));
+    atexit(unmapGamePath);
+    log_info("Long game path: running it as %s\\%s (%s is %s)", drive, rest, drive, full);
+    snprintf(path, size, "%s\\%s", drive, rest);
+}
+#endif
 
 bool dirExists(const char *path)
 {
@@ -1160,6 +1235,9 @@ int parseArgs(int argc, char *argv[], char *command, char *originalDir, char *ga
             log_error("Directory does not exist: %s\n", forcedGameDir);
             return EXIT_FAILURE;
         }
+#ifdef _WIN32
+        shortenGamePath(forcedGameDir, sizeof(forcedGameDir));
+#endif
         chdir(forcedGameDir);
     }
     else if (strlen(passedGamePath) > 0)
@@ -1178,6 +1256,9 @@ int parseArgs(int argc, char *argv[], char *command, char *originalDir, char *ga
             return EXIT_FAILURE;
         }
 
+#ifdef _WIN32
+        shortenGamePath(passedGamePath, sizeof(passedGamePath));
+#endif
         chdir(passedGamePath);
 
         if (commandOnlyElf)

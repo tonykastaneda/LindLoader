@@ -22,7 +22,7 @@
 
 extern uint32_t gId;
 extern int gGrp;
-extern char envpath[100];
+extern char envpath[1024];
 
 /**
  * Hook for the only function provided by kswapapi.so
@@ -88,10 +88,12 @@ char *sharedGetenv(const char *name)
     if (strcmp(name, "TEA_DIR") == 0)
     {
 #ifdef __linux__
-        if (getcwd(envpath, 100) == NULL)
+        if (getcwd(envpath, sizeof(envpath)) == NULL)
             return "";
 #else
-        if (GetCurrentDirectoryA(MAX_PATH, (LPSTR)envpath) == 0)
+        /* Too small a buffer gets nothing written and the size needed returned. */
+        const DWORD n = GetCurrentDirectoryA(sizeof(envpath), (LPSTR)envpath);
+        if (n == 0 || n >= sizeof(envpath))
             return "";
 #endif
         if (gGrp == GROUP_VT3 || gGrp == GROUP_VT3_TEST || gId == RAMBO_SBQL || gId == RAMBO_SBSS_CHINA || gId == TOO_SPICY_SBMV)

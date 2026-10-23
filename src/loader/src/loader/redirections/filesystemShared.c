@@ -58,7 +58,7 @@
 DeviceType hooks[5] = {NO_DEVICE, NO_DEVICE, NO_DEVICE, NO_DEVICE, NO_DEVICE};
 FILE *fileHooks[10] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 FileTypes fileRead[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-char envpath[100];
+char envpath[1024]; /* TEA_DIR (libcShared.c): the game folder, which can be a long Windows path */
 
 int fontABCidx = 0;
 int fontTGAidx = 0;
