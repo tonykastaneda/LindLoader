@@ -237,9 +237,18 @@ void bridgeglOrtho(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top,
             if (gGrp == GROUP_OUTRUN && right - left == 800.0 && fabs(top - bottom) == 480.0)
             {
                 const double scale = widescreenScale();
-                const double mid = (left + right) / 2.0, half = (right - left) / 2.0 / scale;
-                left = mid - half;
-                right = mid + half;
+                if (scale < 1.0)
+                {
+                    const double mid = (left + right) / 2.0, half = (right - left) / 2.0 / scale;
+                    left = mid - half;
+                    right = mid + half;
+                }
+                else
+                {
+                    const double mid = (top + bottom) / 2.0, half = (top - bottom) / 2.0 * scale;
+                    bottom = mid - half;
+                    top = mid + half;
+                }
             }
             break;
     }
@@ -3776,15 +3785,19 @@ static float widescreenBaseAspect(void)
     return 0.0f;
 }
 
-// How much narrower the game's x range becomes: the 3D view widens (its projection was made for the
-// game's own shape) and 2D keeps its shape, in the middle. 1 when nothing changes.
+// The game's shape over the screen's: below 1 the screen is wider, so the game's x range narrows by it (the
+// 3D view widens, 2D keeps its shape in the middle); above 1 it is taller (OutRun at 4:3), so its y range
+// narrows by 1 / it instead (the 3D view shows more above and below, 2D keeps its shape across the middle).
+// 1 when nothing changes.
 static float widescreenScale(void)
 {
     const float base = widescreenBaseAspect();
     if (base == 0.0f)
         return 1.0f;
     const float scale = base / ((float)gWidth / (float)gHeight);
-    return scale < 0.999f ? scale : 1.0f;
+    if (scale > 1.001f && gGrp != GROUP_OUTRUN) // Race TV's HUD only moves out sideways
+        return 1.0f;
+    return fabsf(scale - 1.0f) > 0.001f ? scale : 1.0f;
 }
 
 const float *widescreenProjection(const float *m, float *out)
@@ -3803,9 +3816,18 @@ const float *widescreenProjection(const float *m, float *out)
     if (!perspective && !hud)
         return m;
     memcpy(out, m, 16 * sizeof(float));
-    out[0] *= scale;
-    if (hud)
-        out[12] *= scale;
+    if (scale < 1.0f)
+    {
+        out[0] *= scale;
+        if (hud)
+            out[12] *= scale;
+    }
+    else
+    {
+        out[5] /= scale;
+        if (hud)
+            out[13] /= scale;
+    }
     return out;
 }
 
