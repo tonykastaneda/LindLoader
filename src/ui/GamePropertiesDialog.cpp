@@ -159,9 +159,9 @@ QWidget *GamePropertiesDialog::buildGraphicsPage()
     form->addRow("Vertical Sync:", combo("VSYNC", "AUTO", {{"Auto (Recommended)", "AUTO"}, {"On", "1"}, {"Off", "0"}}));
     form->addRow(check("Start Fullscreen", "FULLSCREEN", false));
     form->addRow(check("Keep Aspect Ratio (black bars instead of stretching)", "KEEP_ASPECT_RATIO", true));
-    // The loader widens SEGA Race TV's 3D view to a wide resolution (the HUD stays 4:3). New in the loader's
-    // [Display], so it may not be in the file yet: written there by name.
-    if (m_game.gameId == "SBPF")
+    // The loader widens SEGA Race TV's and OutRun 2 SP SDX's 3D view to a wide resolution (the HUD keeps its
+    // shape). New in the loader's [Display], so it may not be in the file yet: written there by name.
+    if (m_game.gameId == "SBPF" || m_game.gameId == "SBMB")
     {
         auto *wide = new QCheckBox("Widescreen (wider 3D view at a wide resolution such as 1920 x 1080)");
         wide->setChecked(m_ini.value("Display", "WIDESCREEN", "true").toLower() == "true");
